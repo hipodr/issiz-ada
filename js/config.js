@@ -12,7 +12,7 @@ export const COOK_TIME = 10;      // seconds to cook one item
 export const BURN_TIME = 30;      // seconds a cooked item can wait before it burns
 
 export const SAVE_KEY = 'issizada.save';
-export const SAVE_VERSION = 5;    // bump when the save shape changes; add a migration in save.js
+export const SAVE_VERSION = 6;    // bump when the save shape changes; add a migration in save.js
 export const BEST_KEY = 'issizada.best';
 
 export const TILE = Object.freeze({ DEEP: 0, SHAL: 1, SAND: 2, GRASS: 3, FOREST: 4, POND: 5 });
@@ -31,3 +31,15 @@ export const RATE = Object.freeze({
   sickHungerMul: 1.3,  // hunger drains faster while sick
 });
 export const SICK_TIME = 45;      // seconds of sickness after bad food
+
+// Experience. XP needed to go from level L to L+1 = XP_STEP * L  (L1→2: 25, L2→3: 50, L3→4: 75 …)
+export const XP_STEP = 25;
+export const XP = Object.freeze({
+  gather: 1,      // stick, pebble, berry, fiber, coconut
+  fell: 4,        // a tree falls / a rock breaks
+  fish: 6,        // a fish is caught
+  hunt: 8,        // an animal is killed
+  cook: 3,        // cooked food taken off the fire
+  craftPerLvl: 4, // crafting gives this × recipe level
+  day: 15,        // every new morning you survive
+});

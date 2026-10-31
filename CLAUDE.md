@@ -39,6 +39,10 @@ tools/smoke.mjs       headless test of the real game logic + one render pass
   Drag & drop: bag↔bag (swap/merge) and bag↔equipment. Tap = details (Ye / İç / Kuşan / Çıkar / Yere bırak).
 - Sopa/Mızrak are weapons only. Campfire opens its own sheet (wood, 3 timed cook slots, burning). Fire sheet doesn't pause.
 - `G.hurt(n)` applies armor; ready for hostile animals.
+- Craft is its own sheet behind the hammer button (top-right, left of the bag). Recipes have `lvl`; locked ones show "Sv N".
+- XP: amounts in `config.js XP`, curve `levelOf(xp)` in game.js (XP_STEP × level). `G.addXp(n)` → `ui.levelUp(lvl, unlockedNames)`.
+- Hut (`structures.js hut`, lvl 3): Uyu at evening/night skips to morning (`G.sleep`); the hut is `G.home`.
+  Dying with a home → `G.respawn()` at the hut, bag dropped where you fell (equipment kept). No home → game over.
 
 ## Rules of the codebase
 - `game.js` never touches the DOM. It talks to the screen only via `this.ui` (toast, bump, changed, vibrate, openChest, over).
@@ -65,6 +69,6 @@ tools/smoke.mjs       headless test of the real game logic + one render pass
 2. ✅ Fishing (bite mini-game), bow + arrows + rabbits, timed cooking, raw-food sickness, canteen
 2b. ✅ Fire screen, tooltips
 2c. ✅ One smart button with auto-tool, equipment doll + stats + drag & drop, gear (hat, vest, shoes, shield, spear), fewer resources
-3. Shelter: prefab hut → upgradeable house; energy bar + sleep (skip night)
-4. Few dangerous animals (boar, `ai: 'hostile'`), weather (rain/storm puts out fires), farming, sounds, minimap
+3. ✅ Hut + sleep + respawn, XP/levels with recipe gating, separate craft sheet. Next: hut → house upgrade (`e.lvl`), energy bar
+4. NEXT: few dangerous animals (boar, `ai: 'hostile'`, uses G.hurt), shipwreck crates washing ashore each morning, weather (rain/storm puts out fires), farming, sounds, minimap
 Goal is endless survival with a day record (no escape ending).

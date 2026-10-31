@@ -8,21 +8,22 @@ import { STRUCT } from './data/structures.js';
 import { EQUIP_SLOTS, STATS } from './data/equipment.js';
 import { ICON, ico } from './data/icons.js';
 import { Inventory, moveSlot, swapSlots } from './inventory.js';
+import { levelOf } from './game.js';
 import { maxStack } from './data/items.js';
 
 const $ = id => document.getElementById(id);
-const SHEETS = ['bag', 'chest', 'fire'];
-export const PAUSING = new Set(['bag', 'chest']);   // the fire sheet keeps time running so food cooks
+const SHEETS = ['bag', 'craft', 'chest', 'fire'];
+export const PAUSING = new Set(['bag', 'craft', 'chest']);   // the fire sheet keeps time running so food cooks
 
 export class UI {
   constructor({ onOver }) {
-    this.G = null; this.sheet = null; this.tab = 'inv'; this.sel = null; this.ent = null; this.drag = null;
+    this.G = null; this.sheet = null; this.sel = null; this.ent = null; this.drag = null;
     this.dirty = true; this.hudT = 0; this.onOver = onOver; this.last = {};
     $('bagBtn').onclick = () => this.open('bag');
+    $('craftBtn').onclick = () => this.open('craft');
     for (const id of SHEETS) $(id + 'Close').onclick = () => this.close();
     $('scrim').onclick = () => this.close();
     $('woodBtn').onclick = () => { if (this.ent) this.G.fireAddWood(this.ent); };
-    document.querySelectorAll('#bag [data-tab]').forEach(b => b.onclick = () => this.setTab(b.dataset.tab));
     document.addEventListener('pointerdown', e => { if (!$('tip').hidden && !e.target.closest('#tip,[data-tip]')) this.hideTip(); }, true);
     this.setupDrag();
   }
@@ -40,13 +41,23 @@ export class UI {
   openChest(e) { this.ent = e; this.open('chest', true); }
   openFire(e) { this.ent = e; this.open('fire', true); }
   over() { this.close(); this.onOver(); }
+  levelUp(lvl, unlocked) {
+    const b = $('banner');
+    b.innerHTML = `<b>Seviye ${lvl}!</b>${unlocked.length ? `<span>Yeni: ${unlocked.join(', ')}</span>` : ''}`;
+    b.classList.remove('show'); void b.offsetWidth; b.classList.add('show');
+    clearTimeout(this._bt); this._bt = setTimeout(() => b.classList.remove('show'), 3200);
+    this.vibrate([40, 60, 40]);
+  }
+  sleep(day) {
+    const f = $('fade'); f.hidden = false; f.textContent = `${day}. gün`; f.classList.remove('go'); void f.offsetWidth; f.classList.add('go');
+    clearTimeout(this._ft); this._ft = setTimeout(() => { f.hidden = true; }, 2200);
+  }
 
   // ---- sheets ----
-  open(name, keepEnt, tab) {
+  open(name, keepEnt) {
     if (!this.G || this.G.dead) return;
     const ent = keepEnt ? this.ent : null;
     this.close(); this.ent = ent; this.sheet = name; this.sel = null;
-    if (name === 'bag') this.tab = tab || this.tab;
     this.input?.release();
     $(name).hidden = false; $('scrim').hidden = !PAUSING.has(name); this.renderSheet();
   }
@@ -54,14 +65,11 @@ export class UI {
     this.sheet = null; this.ent = null; this.sel = null; this.hideTip(); this.endDrag();
     for (const id of [...SHEETS, 'scrim']) $(id).hidden = true;
   }
-  setTab(t) { this.tab = t; this.sel = null; this.hideTip(); this.renderSheet(); }
   renderSheet() {
     if (this.drag) return;               // never rebuild under a finger
-    if (this.sheet === 'bag') {
-      document.querySelectorAll('#bag [data-tab]').forEach(b => b.classList.toggle('on', b.dataset.tab === this.tab));
-      $('tabInv').hidden = this.tab !== 'inv'; $('tabCraft').hidden = this.tab !== 'craft';
-      this.tab === 'inv' ? this.renderInv() : this.renderCraft();
-    } else if (this.sheet === 'chest') this.renderChest();
+    if (this.sheet === 'bag') this.renderInv();
+    else if (this.sheet === 'craft') this.renderCraft();
+    else if (this.sheet === 'chest') this.renderChest();
     else if (this.sheet === 'fire') this.renderFire();
   }
 
@@ -222,20 +230,23 @@ export class UI {
     G.ui.changed(); this.vibrate(15);
   }
 
-  // ---- craft tab ----
+  // ---- craft sheet ----
   renderCraft() {
     const G = this.G, box = $('recs'); box.textContent = '';
+    const L = levelOf(G.S.xp);
+    $('craftLvl').innerHTML = `<b>Seviye ${L.lvl}</b><span class="bar xp"><i style="width:${(L.cur / L.need * 100).toFixed(1)}%"></i></span><small>${L.need - L.cur} XP sonra seviye ${L.lvl + 1}</small>`;
     for (const cat of CATS) {
       const list = RECIPES.filter(r => r.cat === cat); if (!list.length) continue;
       box.insertAdjacentHTML('beforeend', `<div class="sec">${cat}</div>`);
       for (const r of list) {
         const outK = r.out?.[0], name = r.place ? STRUCT[r.place].n : ITEMS[outK].n + (r.out[1] > 1 ? ` ×${r.out[1]}` : '');
-        const el = document.createElement('div'); el.className = 'rec';
+        const lockedLvl = (r.lvl || 1) > L.lvl;
+        const el = document.createElement('div'); el.className = 'rec' + (lockedLvl ? ' locked' : '');
         const costs = Object.entries(r.cost).map(([k, v]) => { const have = G.inv.count(k); return `<button type="button" data-tip="${k}" class="${have >= v ? '' : 'no'}">${ico(k)}<span>${ITEMS[k].n}</span> ${have}/${v}</button>`; }).join('');
         el.innerHTML = `<div class="nm"${outK ? ` data-tip="${outK}"` : ''}>${ICON[r.id] ? ico(r.id) : ico(outK)}${name}</div><div class="ds">${r.d}</div><div class="cost">${costs}</div>`;
         el.querySelectorAll('[data-tip]').forEach(b => b.onclick = () => this.showTip(b.dataset.tip, b));
-        const b = document.createElement('button'); b.type = 'button'; b.className = 'mk'; b.textContent = r.place ? 'Kur' : 'Yap';
-        b.disabled = !G.inv.canAfford(r.cost);
+        const b = document.createElement('button'); b.type = 'button'; b.className = 'mk'; b.textContent = lockedLvl ? `Sv ${r.lvl}` : r.place ? 'Kur' : 'Yap';
+        b.disabled = lockedLvl || !G.inv.canAfford(r.cost);
         b.onclick = () => { if (G.craft(r.id) && r.place) this.close(); else this.renderCraft(); };
         el.appendChild(b); box.appendChild(el);
       }
@@ -298,10 +309,11 @@ export class UI {
     const set = (b, n, s, v) => { $(b).style.width = v.toFixed(1) + '%'; $(n).textContent = Math.ceil(v); $(s).classList.toggle('low', v < 25); };
     set('bHp', 'nHp', 'sHp', S.hp); set('bHu', 'nHu', 'sHu', S.hunger); set('bTh', 'nTh', 'sTh', S.thirst);
     $('sickTag').hidden = !(S.sick > 0);
+    const L = levelOf(S.xp); $('lvLbl').textContent = `Sv ${L.lvl}`; $('bXp').style.width = (L.cur / L.need * 100).toFixed(1) + '%';
     $('dayLbl').textContent = S.day + '. gün'; $('todLbl').textContent = G.timeOfDay();
     const goal = G.goal(); if (goal !== this.last.goal) { this.last.goal = goal; $('goalLbl').textContent = goal; }
 
-    const a = G.action, lbl = a ? a.lbl : '', icon = a?.tool || (a ? ({ gather: 'hand', ent: a.o?.k === 'fire' ? 'fire' : a.o?.k === 'chest' ? 'chest' : 'hand', pond: 'canteen' })[a.type] || '' : '');
+    const a = G.action, lbl = a ? a.lbl : '', icon = a?.tool || (a ? ({ gather: 'hand', ent: ICON[a.o?.k] ? a.o.k : 'hand', pond: 'canteen' })[a.type] || '' : '');
     if (lbl !== this.last.lbl || icon !== this.last.icon) {
       this.last.lbl = lbl; this.last.icon = icon;
       $('actLbl').textContent = lbl || 'Keşfet';

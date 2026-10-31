@@ -54,6 +54,26 @@ export const STRUCT = {
     sparks: true,
   },
 
+  hut: {
+    n: 'Kulübe', r: 18,
+    init(e) { e.lvl = 1; },            // e.lvl: room for upgrades (hut → house)
+    label: (e, G) => G.canSleep() ? 'Uyu' : 'Kulübe',
+    interact(e, G) { G.sleep(e); return 'once'; },
+    warm: () => 70,
+    draw(ctx, e) {
+      const { x, y } = e;
+      shadow(ctx, x + 3, y + 4, 30, 9);
+      ctx.fillStyle = '#8a5a30'; ctx.fillRect(x - 24, y - 26, 48, 28);                 // walls
+      ctx.fillStyle = '#6b4424'; for (let i = 0; i < 4; i++) ctx.fillRect(x - 24, y - 20 + i * 6, 48, 1.4);
+      ctx.fillStyle = '#3a2414'; ctx.fillRect(x - 6, y - 16, 12, 18);                   // door
+      ctx.fillStyle = '#c9a24a'; ctx.beginPath(); ctx.moveTo(x - 31, y - 22); ctx.lineTo(x, y - 50); ctx.lineTo(x + 31, y - 22); ctx.closePath(); ctx.fill();   // thatch
+      ctx.strokeStyle = '#a8822f'; ctx.lineWidth = 1.2; ctx.beginPath();
+      for (let i = -3; i <= 3; i++) { ctx.moveTo(x + i * 7, y - 22); ctx.lineTo(x + i * 2.2, y - 44); }
+      ctx.stroke();
+      ctx.fillStyle = '#e0c06a'; ctx.fillRect(x - 31, y - 24, 62, 3);
+    },
+  },
+
   chest: {
     n: 'Sandık', r: 11,
     init(e) { e.slots = Array(CHEST_SLOTS).fill(null); },

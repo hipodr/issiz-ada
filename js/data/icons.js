@@ -22,6 +22,7 @@ export const ICON = {
   vest: '<path d="M8 3l-4 3v14h6V9zM16 3l4 3v14h-6V9z" fill="#9a7a52"/><path d="M8 3c1 2 2.5 3 4 3s3-1 4-3" stroke="#6f5434" stroke-width="1.4" fill="none"/>',
   shoes: '<path d="M3 15c3 0 4-3 5-6h4c0 3 1 4 4 5s5 1 5 3v2H3z" fill="#7a5634"/><path d="M3 19h18" stroke="#4a3320" stroke-width="2"/>',
   shield: '<path d="M12 2.5l8 3v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10v-6z" fill="#9a6436"/><path d="M12 2.5v19M4 9h16" stroke="#6b4424" stroke-width="1.4"/><circle cx="12" cy="10" r="2.2" fill="#c9ccd1"/>',
+  hut: '<path d="M3 11L12 4l9 7z" fill="#d9b25c"/><path d="M5 10.5h14V20H5z" fill="#9a6436"/><path d="M5 13h14M5 16h14" stroke="#7a4c26" stroke-width="1"/><rect x="10" y="14" width="4" height="6" fill="#3a2414"/>',
   axe: '<path d="M6 21.5L15.5 7" stroke="#8a5a32" stroke-width="2.6" stroke-linecap="round"/><path d="M12 4.2c3.5-2 7.6-.6 8.6 2.6l-4.6 4.4c-.6-2.3-2.6-3.8-5.2-3.6z" fill="#cfd3d8"/><path d="M16 11.2c-.6-2.3-2.6-3.8-5.2-3.6l.8-1.2c2.4 0 4.4 1.4 5.2 3.6z" fill="#9ea3a9"/>',
   pick: '<path d="M8 21.5L14 8" stroke="#8a5a32" stroke-width="2.6" stroke-linecap="round"/><path d="M3.5 9.5C8 4.5 15 3.5 21 6.5c-4.5-.6-9 .3-12.5 3.4-1.8-.8-3.5-.9-5-.4z" fill="#cfd3d8"/>',
   rod: '<path d="M3.5 21L19 3.5" stroke="#8a5a32" stroke-width="2.4" stroke-linecap="round"/><path d="M19 3.5c1.5 6 .5 10.5-1.8 13.5" stroke="#e9e3d2" stroke-width="1" fill="none"/><circle cx="17" cy="18.2" r="1.9" fill="#e8505b"/><circle cx="7.5" cy="16.5" r="2.2" fill="none" stroke="#c7a46a" stroke-width="1.6"/>',

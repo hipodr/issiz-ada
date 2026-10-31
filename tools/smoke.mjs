@@ -1,6 +1,6 @@
 // Headless smoke test: runs the real game logic (and one render pass with a stub canvas).
 // Usage: node tools/smoke.mjs        Exit code 1 on any failed check.
-import { Game } from '../js/game.js';
+import { Game, levelOf } from '../js/game.js';
 import { T, TILE, COOK_TIME, BURN_TIME, isSeaTile } from '../js/config.js';
 import { ITEMS } from '../js/data/items.js';
 import { RECIPES } from '../js/data/recipes.js';
@@ -12,7 +12,7 @@ import { migrate } from '../js/save.js';
 let fails = 0;
 const ok = (cond, msg) => { console.log(`${cond ? '  ok ' : 'FAIL '} ${msg}`); if (!cond) fails++; };
 const log = [];
-const ui = { toast: m => log.push(m), bump() {}, changed() {}, vibrate() {}, openChest() { log.push('openChest'); }, openFire() { log.push('openFire'); }, over() { log.push('over'); } };
+const ui = { toast: m => log.push(m), bump() {}, changed() {}, vibrate() {}, openChest() { log.push('openChest'); }, openFire() { log.push('openFire'); }, over() { log.push('over'); }, levelUp(l, u) { log.push(`level${l}:${u.join(',')}`); }, sleep(d) { log.push(`sleep${d}`); } };
 const inp = { jx: 0, jy: 0, act: false, actCd: 0, axis() { return { x: this.jx, y: this.jy }; } };
 const run = (G, sec, dt = 1 / 60) => { for (let t = 0; t < sec; t += dt) { if (G.dead) break; G.update(dt, inp); } };
 const look = G => { G.action = G.findAction(); return G.action; };
@@ -50,6 +50,15 @@ let picked = 0;
 for (const o of W.res.filter(o => (o.k === 'stick' || o.k === 'pebble') && o.alive).slice(0, 12))
   if (standNear(G, o, 10, a => a?.o === o)) { press(G); picked++; }
 ok(picked >= 8 && G.inv.count('wood') + G.inv.count('stone') === picked, `picked ${picked} ground items with the one button`);
+ok(G.S.xp === picked, 'gathering gives 1 XP each');
+
+// ---------- levels gate recipes ----------
+ok(levelOf(0).lvl === 1 && levelOf(25).lvl === 2 && levelOf(75).lvl === 3 && levelOf(150).lvl === 4, 'level curve 25 / 75 / 150');
+G.S.xp = 0; G.inv.add('fiber', 3);
+ok(!G.craft('rope') && log.some(m => m.includes('2. seviye')), 'rope locked at level 1');
+G.addXp(25); ok(G.level === 2 && log.some(m => m.startsWith('level2:') && m.includes('İp')), 'level up to 2 announces İp');
+ok(G.craft('rope'), 'rope craftable at level 2');
+G.S.xp = 10000;   // unlock everything for the rest of the test
 
 // ---------- auto tool choice ----------
 G.inv.add('wood', 20); G.inv.add('stone', 20); G.inv.add('fiber', 20);
@@ -144,12 +153,29 @@ ok(G.action?.type === 'shoot' && G.action.tool === 'bow', 'nothing close + rabbi
 const a0 = G.inv.count('arrow'); press(G); for (let i = 0; i < 60; i++) G.updateArrows(1 / 60);
 ok(G.inv.count('arrow') === a0 - 1 && !r2.alive && G.done.hunt, 'rabbit shot');
 
+// ---------- hut: sleep and respawn ----------
+G.inv.add('wood', 20); G.inv.add('rope', 4); G.inv.add('fiber', 8);
+ok(G.craft('hut'), 'build hut'); const hut = W.ents.find(e => e.k === 'hut'); ok(hut && G.home === hut.id, 'first hut becomes home');
+let near = false; for (const [dx, dy] of [[0, 34], [0, -34], [34, 0], [-34, 0], [0, 44]]) { goTo(G, hut.x + dx, hut.y + dy); if (G.action?.o === hut) { near = true; break; } }
+ok(near, 'button targets the hut');
+G.S.time = .3; ok(G.action.lbl === 'Kulübe', 'daytime label: Kulübe');
+press(G); ok(G.S.time === .3, 'cannot sleep at noon');
+G.S.time = .75; look(G); ok(G.action.lbl === 'Uyu', 'evening label: Uyu');
+const day0 = G.S.day, xp0 = G.S.xp; G.S.hp = 40; press(G);
+ok(G.S.day === day0 + 1 && G.S.time === .06 && G.S.hp === 80 && log.includes(`sleep${day0 + 1}`) && G.S.xp > xp0, 'sleeping skips to morning, heals, gives XP');
+const bagItems = G.inv.used(); G.P.x += 200; G.S.hp = .001; G.S.hunger = 0; G.S.thirst = 0; G.update(1 / 60, inp);
+ok(!G.dead && G.S.hp === 60 && Math.hypot(G.P.x - hut.x, G.P.y - hut.y) < 80, 'death respawns at the hut');
+ok(G.inv.used() === 0 && W.ents.filter(e => e.k === 'drop').length >= bagItems, 'bag items stay where you fell');
+for (const e of W.ents.filter(e => e.k === 'drop')) G.pickupDrop(e);
+ok(G.inv.used() === bagItems, 'got everything back');
+
 // ---------- save / load / migrate ----------
 const d = JSON.parse(JSON.stringify(G.serialize()));
 const G3 = Game.fromSave(d, ui);
 ok(G3.inv.count('cfish') === G.inv.count('cfish') && G3.eq.body?.k === 'vest' && G3.st.warm === .6 && !G3.W.res[W.res.indexOf(tree)].alive, 'save/load keeps bag, equipment, stats, felled tree');
-const v4 = { ...d, v: 4, hand: 2 }; delete v4.eq; const m = migrate(v4);
-ok(m && m.v === 5 && !('hand' in m) && Game.fromSave(m, ui).eq, 'v4 save migrates to v5');
+ok(G3.S.xp === G.S.xp && G3.home === G.home, 'save/load keeps XP and home');
+const v4 = { ...d, v: 4, hand: 2, s: { ...d.s, xp: undefined } }; delete v4.eq; delete v4.home; const m = migrate(v4);
+ok(m && m.v === 6 && !('hand' in m) && m.s.xp > 0 && Game.fromSave(m, ui).eq, 'v4 save migrates to v6 with estimated XP');
 
 // ---------- long run: day/night, starvation → death ----------
 const G4 = new Game(ui); G4.newGame(99); log.length = 0;

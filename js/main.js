@@ -16,7 +16,7 @@ const input = new Input({
   onFirstMove: () => { $('hint').hidden = true; },
   onKey: k => {
     if (state !== 'play') return false;
-    if (k === 'b' || k === 'c') { const tab = k === 'b' ? 'inv' : 'craft'; ui.sheet === 'bag' && ui.tab === tab ? ui.close() : ui.open('bag', false, tab); return true; }
+    if (k === 'b' || k === 'c') { const n = k === 'b' ? 'bag' : 'craft'; ui.sheet === n ? ui.close() : ui.open(n); return true; }
     if (k === 'escape') { ui.close(); return true; }
     return false;
   },

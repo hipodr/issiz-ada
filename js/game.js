@@ -1,6 +1,6 @@
 // Game rules and simulation. No DOM: talks to the screen only through `this.ui`
 // (toast, bump, changed, vibrate, openChest, over), so it can be tested headless.
-import { T, MAP, DAY, SPEED, BAG_SLOTS, FIRE_MAX, TILE, RATE, SICK_TIME, SAVE_VERSION, isSeaTile } from './config.js';
+import { T, MAP, DAY, SPEED, BAG_SLOTS, FIRE_MAX, TILE, RATE, SICK_TIME, SAVE_VERSION, XP, XP_STEP, isSeaTile } from './config.js';
 import { clamp, smooth, DIRS8 } from './util.js';
 import { World } from './world.js';
 import { Inventory } from './inventory.js';
@@ -11,7 +11,14 @@ import { STRUCT } from './data/structures.js';
 import { ANIMALS } from './data/animals.js';
 import { EQUIP_SLOTS, sumStats } from './data/equipment.js';
 
-const NOOP_UI = { toast() {}, bump() {}, changed() {}, vibrate() {}, openChest() {}, openFire() {}, over() {} };
+const NOOP_UI = { toast() {}, bump() {}, changed() {}, vibrate() {}, openChest() {}, openFire() {}, over() {}, levelUp() {}, sleep() {} };
+
+/** Level from total XP. XP from level L to L+1 = XP_STEP * L. */
+export function levelOf(xp) {
+  let lvl = 1, need = XP_STEP;
+  while (xp >= need) { xp -= need; lvl++; need = XP_STEP * lvl; }
+  return { lvl, cur: xp, need };
+}
 
 // Tutorial chain shown in the "Hedef" card; after the last one the game is open-ended.
 export const MILESTONES = [
@@ -21,6 +28,7 @@ export const MILESTONES = [
   { id: 'rope', t: 'Liflerden ip yap' },
   { id: 'fish', t: 'Olta yap, kıyıda balık tut' },
   { id: 'cook', t: 'Balığı ateşte pişir (Ateş → koy, bekle, al)' },
+  { id: 'hut',  t: 'Kulübe kur, gece içinde uyu' },
   { id: 'hunt', t: 'Yay ve ok yap, tavşan avla' },
   { id: 'wear', t: 'Postlardan giysi yap ve giy (Çanta)' },
 ];
@@ -33,7 +41,8 @@ export class Game {
     this.W = new World(seed);
     const [sx, sy] = this.W.spawn;
     this.P = { x: (sx + .5) * T, y: (sy + .5) * T, vx: 0, vy: 0, r: 8, fx: 0, fy: 1, walk: 0, moving: false, swing: 0 };
-    this.S = { hp: 100, hunger: 100, thirst: 100, sick: 0, time: .06, day: 1, coldWarned: false, lastWarn: -99, lockMsg: -99 };
+    this.S = { hp: 100, hunger: 100, thirst: 100, sick: 0, time: .06, day: 1, xp: 0, coldWarned: false, lastWarn: -99, lockMsg: -99 };
+    this.home = null;          // id of the hut you respawn in
     this.inv = new Inventory(BAG_SLOTS);
     this.eq = {};             // equipment: slot id → stack (see data/equipment.js)
     this.st = sumStats(this.eq);
@@ -48,7 +57,7 @@ export class Game {
     const W = this.W, P = this.P, S = this.S;
     return {
       v: SAVE_VERSION, seed: W.seed, p: [P.x, P.y],
-      s: { hp: S.hp, hunger: S.hunger, thirst: S.thirst, sick: S.sick, time: S.time, day: S.day },
+      s: { hp: S.hp, hunger: S.hunger, thirst: S.thirst, sick: S.sick, time: S.time, day: S.day, xp: S.xp }, home: this.home,
       inv: this.inv.slots, eq: this.eq, done: this.done, nextId: W.nextId,
       res: W.res.map(o => o.alive ? 0 : [o.hp, Math.round(o.rg)]),
       ents: W.ents.map(({ _gi, cat, ...e }) => e),
@@ -61,7 +70,7 @@ export class Game {
     const W = g.W;
     g.P.x = d.p[0]; g.P.y = d.p[1]; g.cam.x = g.P.x; g.cam.y = g.P.y;
     Object.assign(g.S, d.s);
-    g.inv.slots = d.inv; g.eq = d.eq || {}; g.st = sumStats(g.eq); g.done = d.done || {};
+    g.home = d.home ?? null; g.inv.slots = d.inv; g.eq = d.eq || {}; g.st = sumStats(g.eq); g.done = d.done || {};
     d.res.forEach((st, i) => { const o = W.res[i]; if (!o || !st) return; o.alive = 0; o.hp = st[0]; W.scheduleRegrow(o, Math.max(1, st[1])); });
     for (const e of d.ents) { const n = W.addEnt(e.k, e.x, e.y, { ...e, __loaded: true }); STRUCT[n.k].fix?.(n); }
     W.nextId = Math.max(W.nextId, d.nextId || 1);
@@ -85,6 +94,54 @@ export class Game {
     let best = -1;
     this.inv.slots.forEach((s, i) => { if (s && ITEMS[s.k].melee && (best < 0 || ITEMS[s.k].melee > ITEMS[this.inv.slots[best].k].melee)) best = i; });
     return best < 0 ? null : { s: this.inv.slots[best], slot: best };
+  }
+
+  // ---- experience & level ----
+  get level() { return levelOf(this.S.xp).lvl; }
+  addXp(n) {
+    if (!n) return;
+    const before = this.level;
+    this.S.xp += n;
+    this.floatText(this.P.x + 14, this.P.y - 42, `+${n} XP`, '#ffe08a');
+    const after = this.level;
+    if (after > before) {
+      const unlocked = RECIPES.filter(r => (r.lvl || 1) > before && (r.lvl || 1) <= after).map(r => r.out ? ITEMS[r.out[0]].n : STRUCT[r.place].n);
+      this.burst(this.P.x, this.P.y - 20, ['#ffe08a', '#ff9a3c', '#ffffff'], 18);
+      this.ui.levelUp(after, unlocked);
+    }
+    this.ui.changed();
+  }
+
+  // ---- sleeping & respawning ----
+  canSleep() { const t = this.S.time; return t > .58 || t < .05; }
+  sleep(hut) {
+    const S = this.S;
+    this.home = hut.id;
+    if (!this.canSleep()) { this.ui.toast('Kulübe evin oldu. Akşam olunca uyuyabilirsin'); this.ui.changed(); return; }
+    const skip = (S.time > .5 ? 1 - S.time + .06 : .06 - S.time) * DAY;
+    if (S.time > .5) S.day++;
+    S.time = .06; S.coldWarned = false;
+    S.hunger = Math.max(5, S.hunger - 20); S.thirst = Math.max(5, S.thirst - 20);
+    S.hp = Math.min(100, S.hp + 40); S.sick = 0;
+    for (const e of this.W.ents) STRUCT[e.k].update?.(e, skip, this);
+    this.W.tickRegrow(skip, this.P);
+    this.ui.sleep(S.day);
+    this.addXp(XP.day);
+  }
+  /** Back at the hut after dying: bag items stay where you fell. Returns false when there is no hut. */
+  respawn() {
+    const hut = this.W.ents.find(e => e.id === this.home && e.k === 'hut');
+    if (!hut) return false;
+    const P = this.P, S = this.S;
+    let lost = 0;
+    this.inv.slots.forEach((st, i) => { if (st) { this.dropItem(st.k, st.n, P.x, P.y, st.d); this.inv.slots[i] = null; lost++; } });
+    let spot = [hut.x, hut.y + 30];
+    for (const [dx, dy] of [[0, 30], [30, 10], [-30, 10], [0, -60], [40, 30], [-40, 30]]) if (this.canStand(hut.x + dx, hut.y + dy)) { spot = [hut.x + dx, hut.y + dy]; break; }
+    P.x = spot[0]; P.y = spot[1]; P.vx = P.vy = 0; this.cam.x = P.x; this.cam.y = P.y; this.fishing = null;
+    S.hp = 60; S.hunger = Math.max(S.hunger, 50); S.thirst = Math.max(S.thirst, 50); S.sick = 0;
+    this.ui.toast(lost ? 'Kulübende uyandın. Eşyaların düştüğün yerde' : 'Kulübende uyandın');
+    this.ui.changed();
+    return true;
   }
 
   // ---- equipment ----
@@ -142,7 +199,7 @@ export class Game {
 
     // clock
     S.time += dt / DAY;
-    if (S.time >= 1) { S.time -= 1; S.day++; S.coldWarned = false; this.ui.toast(`${S.day}. gün başladı`); this.ui.changed(); }
+    if (S.time >= 1) { S.time -= 1; S.day++; S.coldWarned = false; this.ui.toast(`${S.day}. gün başladı`); this.addXp(XP.day); }
 
     for (const e of [...W.ents]) STRUCT[e.k].update?.(e, dt, this);
 
@@ -163,7 +220,7 @@ export class Game {
       if (S.thirst < 20) { this.ui.toast('Susadın. Göl bul ya da matarandan iç.'); S.lastWarn = this.clock; }
       else if (S.hunger < 20) { this.ui.toast('Acıktın. Çantadan bir şey ye.'); S.lastWarn = this.clock; }
     }
-    if (S.hp <= 0) { this.dead = true; this.ui.over(); return; }
+    if (S.hp <= 0) { if (!this.respawn()) { this.dead = true; this.ui.over(); return; } }
 
     W.tickRegrow(dt, P);
     for (const r of W.res) if (r.hit > 0) r.hit -= dt;   // cheap: only a float decrement
@@ -284,13 +341,14 @@ export class Game {
     const d = RES[o.k];
     o.hit = .2; this.burst(o.x, o.y - (d.fxY || 4), d.fx, 6);
     this.harvestDone(o);
+    this.addXp(XP.gather);
   }
   hit(o, slot, dmg) {
     const d = RES[o.k];
     o.hit = .2; this.burst(o.x, o.y - (d.fxY || 4), d.fx);
     this.wear(this.inv.slots[slot].k, slot);
     o.hp -= dmg;
-    if (o.hp <= 0) this.harvestDone(o);
+    if (o.hp <= 0) { this.harvestDone(o); this.addXp(XP.fell); }
   }
   harvestDone(o) {
     const d = RES[o.k];
@@ -376,7 +434,7 @@ export class Game {
   fireTake(e, i) {
     const c = e.cook[i]; if (!c) return false;
     if (this.inv.add(c.k, 1)) { this.ui.toast('Çanta dolu'); return false; }
-    if (c.st === 'done') this.done.cook = true;
+    if (c.st === 'done') { this.done.cook = true; this.addXp(XP.cook); }
     e.cook[i] = null; this.ui.bump(); this.ui.changed(); return true;
   }
 
@@ -394,7 +452,7 @@ export class Game {
   }
   reel() {
     const f = this.fishing; this.fishing = null;
-    if (f && f.bite) { this.give('fish', 1); this.done.fish = true; this.wear('rod'); this.burst(f.bx, f.by, ['#bfe8ff', '#8fb4c8'], 10); }
+    if (f && f.bite) { this.give('fish', 1); this.done.fish = true; this.addXp(XP.fish); this.wear('rod'); this.burst(f.bx, f.by, ['#bfe8ff', '#8fb4c8'], 10); }
     return 'once';
   }
 
@@ -425,7 +483,7 @@ export class Game {
     a.alive = false;
     for (const [k, n] of ANIMALS[a.k].drops) this.dropItem(k, n, a.x, a.y);
     this.burst(a.x, a.y - 4, ['#d9707a', '#cdbda5'], 12);
-    this.done.hunt = true; this.ui.toast(`${ANIMALS[a.k].n} avlandı! Eti yerden al`); this.ui.vibrate(40);
+    this.done.hunt = true; this.addXp(XP.hunt); this.ui.toast(`${ANIMALS[a.k].n} avlandı! Eti yerden al`); this.ui.vibrate(40);
   }
 
   // ---- animals ----
@@ -473,12 +531,14 @@ export class Game {
   // ================= crafting & building =================
   craft(id) {
     const r = RECIPES.find(x => x.id === id); if (!r) return false;
+    if ((r.lvl || 1) > this.level) { this.ui.toast(`Bunun için ${r.lvl}. seviye gerekli`); return false; }
     if (!this.inv.canAfford(r.cost)) return false;
     if (r.place) {
       const spot = this.findBuildSpot(STRUCT[r.place].r || 8);
       if (!spot) { this.ui.toast('Burası uygun değil, açık bir yere geç'); return false; }
       this.inv.pay(r.cost);
       const e = this.W.addEnt(r.place, spot[0], spot[1]);
+      if (r.place === 'hut' && !this.W.ents.some(h => h.id === this.home)) this.home = e.id;
       this.burst(e.x, e.y - 6, ['#ffd27a', '#c7a46a', '#fff1c9'], 12);
       this.ui.toast(`${STRUCT[r.place].n} kuruldu`);
     } else {
@@ -487,6 +547,7 @@ export class Game {
       this.ui.toast(`${ITEMS[r.out[0]].n} hazır`);
     }
     this.done[id] = true;
+    this.addXp(XP.craftPerLvl * (r.lvl || 1));
     this.ui.vibrate(25); this.ui.changed();
     return true;
   }

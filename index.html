@@ -20,12 +20,16 @@
     <div class="stat" id="sHp"><span class="lab">Sağlık</span><div class="bar"><i id="bHp"></i></div><span class="num" id="nHp">100</span></div>
     <div class="stat" id="sHu"><span class="lab">Açlık</span><div class="bar"><i id="bHu"></i></div><span class="num" id="nHu">100</span></div>
     <div class="stat" id="sTh"><span class="lab">Susuzluk</span><div class="bar"><i id="bTh"></i></div><span class="num" id="nTh">100</span></div>
+    <div class="xprow"><span class="lv" id="lvLbl">Sv 1</span><div class="bar xp"><i id="bXp"></i></div></div>
     <span class="tag" id="sickTag" hidden>Hasta</span>
   </div>
   <div class="side">
     <div class="toprow">
       <div class="card clock"><span id="dayLbl">1. gün</span><small id="todLbl">Sabah</small></div>
-      <button id="bagBtn" class="card" type="button" aria-label="Sırt çantası">
+      <button id="craftBtn" class="card topbtn" type="button" aria-label="Üretim">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4.5l5 5-2.5 2.5-5-5z"/><path d="M13.2 8.8L4 18a1.6 1.6 0 0 0 2.2 2.2l9.2-9.2"/><path d="M12 6l2-2.2c1.2-1.2 3.5-1.6 5 .2"/></svg>
+      </button>
+      <button id="bagBtn" class="card topbtn" type="button" aria-label="Sırt çantası">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6V4.5a3 3 0 0 1 6 0V6"/><path d="M5 11a5 5 0 0 1 5-5h4a5 5 0 0 1 5 5v8a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2z"/><path d="M5 12.5h14"/><rect x="9" y="14.5" width="6" height="3.5" rx="1"/><path d="M3.5 13v4M20.5 13v4"/></svg><span class="badge" id="bagCount">0</span>
       </button>
     </div>
@@ -41,10 +45,12 @@
 <div id="toast" class="card"></div>
 <div id="tip" class="card" hidden></div>
 <div id="ghost" hidden></div>
+<div id="banner" class="card"></div>
+<div id="fade" hidden></div>
 
 <div id="scrim" hidden></div>
 <div id="bag" hidden role="dialog" aria-label="Sırt çantası">
-  <h2><span class="tabs"><button type="button" data-tab="inv">Çanta</button><button type="button" data-tab="craft">Üretim</button></span><button id="bagClose" type="button">Kapat</button></h2>
+  <h2>Sırt çantası <button id="bagClose" type="button">Kapat</button></h2>
   <div id="tabInv">
     <div class="doll">
       <div class="eqcol" id="eqLeft"></div>
@@ -55,7 +61,11 @@
     <div class="slots" id="bagSlots"></div>
     <div id="bagDetail"></div>
   </div>
-  <div id="tabCraft" hidden><div id="recs"></div></div>
+</div>
+<div id="craft" hidden role="dialog" aria-label="Üretim">
+  <h2>Üretim <button id="craftClose" type="button">Kapat</button></h2>
+  <div class="lvlinfo" id="craftLvl"></div>
+  <div id="recs"></div>
 </div>
 <div id="fire" hidden role="dialog" aria-label="Kamp ateşi">
   <h2>Kamp ateşi <button id="fireClose" type="button">Kapat</button></h2>
@@ -77,7 +87,8 @@
   <ul>
     <li><b>Yürümek</b>Ekranın herhangi bir yerinde parmağını sürükle</li>
     <li><b>Turuncu tuş</b>Yakındakine göre kendisi karar verir: odun kes, taş kır, topla, balık tut, saldır, ok at</li>
-    <li><b>Çanta</b>Sağ üstte. Ekipman, eşyalar ve Üretim. Sürükle-bırak ile tak</li>
+    <li><b>Çanta</b>Sağ üstte. Ekipman ve eşyalar, sürükle-bırak ile tak</li>
+    <li><b>Çekiç</b>Üretim. Seviye atladıkça yeni tarifler açılır</li>
   </ul>
   <div class="menuBest" id="menuBest"></div>
   <div class="row">
