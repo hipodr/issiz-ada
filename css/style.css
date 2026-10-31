@@ -65,13 +65,13 @@ button:focus-visible{outline:2px solid var(--sun);outline-offset:2px}
 #craft h2 button,#bag h2 button,#chest h2 button{font-size:14px;color:var(--muted);padding:6px 4px}
 .rec{display:grid;grid-template-columns:1fr auto;gap:4px 12px;align-items:center;padding:12px;border-radius:14px;background:rgba(255,255,255,.05);border:1px solid var(--line)}
 .rec .nm{font-weight:700;font-size:16px;display:flex;align-items:center;gap:8px}
-.rec .cost span{display:inline-flex;align-items:center;gap:4px}
-.rec .cost .ico{width:15px;height:15px}
+.rec .cost>span{display:inline-flex;align-items:center;gap:4px}
+.rec .cost .ico{width:18px;height:18px}
 .rec .nm .ico{width:26px;height:26px}
 .rec .ds{grid-column:1;color:var(--muted);font-size:12px}
 .rec .cost{grid-column:1;display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
-.rec .cost span{font-size:12px;padding:3px 7px;border-radius:7px;background:rgba(255,255,255,.07);font-variant-numeric:tabular-nums}
-.rec .cost span.no{color:#ff9a9a}
+.rec .cost>span{font-size:12px;padding:3px 7px;border-radius:7px;background:rgba(255,255,255,.07);font-variant-numeric:tabular-nums}
+.rec .cost>span.no{color:#ff9a9a}
 .rec .mk{grid-column:2;grid-row:1/span 3;background:var(--sun);color:var(--sun-ink);font-weight:800;border-radius:12px;padding:12px 16px;min-width:70px}
 .rec .mk:disabled{background:rgba(255,255,255,.1);color:var(--muted)}
 #scrim{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:5}
