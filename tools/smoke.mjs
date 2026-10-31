@@ -184,6 +184,15 @@ ok(G.inv.used() === bagItems, 'got everything back');
   for (let i = 0; i < M * M; i++) { if (W.crag[i]) crags++; if (W.tiles[i] === TILE.GRASS || W.tiles[i] === TILE.FOREST) { land++; if (W.elev[i] > .6) high++; } }
   ok(high > land * .05 && crags > 0 && crags < land * .04, `hills and a few crags (high ${high}/${land}, crags ${crags})`);
   ok(!W.crag[W.spawn[1] * M + W.spawn[0]], 'spawn is not on a crag');
+  {
+    const walk = i => W.tiles[i] !== TILE.DEEP && W.tiles[i] !== TILE.SHAL && W.tiles[i] !== TILE.POND && !W.crag[i];
+    let all = 0; for (let i = 0; i < M * M; i++) if (walk(i)) all++;
+    const seen = new Uint8Array(M * M), st = [W.spawn[1] * M + W.spawn[0]]; seen[st[0]] = 1; let n = 0;
+    while (st.length) { const j = st.pop(); n++; for (const k of [j + 1, j - 1, j + M, j - M]) if (!seen[k] && walk(k)) { seen[k] = 1; st.push(k); } }
+    ok(n > all * .95, `crags never box the player in (${(100 * n / all).toFixed(1)}% of land reachable from spawn)`);
+    let near = false; for (let dy = -4; dy <= 4; dy++) for (let dx = -4; dx <= 4; dx++) if (W.crag[(W.spawn[1] + dy) * M + W.spawn[0] + dx]) near = true;
+    ok(!near, 'no crags right next to the spawn');
+  }
   let maxStep = 0; for (let y = 1; y < M - 1; y++) for (let x = 1; x < M - 1; x++) { const i = y * M + x; if (W.tiles[i] < TILE.SAND || W.tiles[i] === TILE.POND) continue; maxStep = Math.max(maxStep, Math.abs(W.elev[i] - W.elev[i + 1]), Math.abs(W.elev[i] - W.elev[i + M])); }
   ok(maxStep < .2, `slopes are gentle (max step ${maxStep.toFixed(3)})`);
   const ci = W.crag.findIndex(v => v), cx = (ci % M + .5) * T, cy = ((ci / M | 0) + .5) * T;

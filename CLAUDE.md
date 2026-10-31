@@ -54,6 +54,8 @@ tools/smoke.mjs       headless test of the real game logic + one render pass
   Mountain tops: more rocks, stony ground, fewer plants. Generated in `World.genElevation` (coast fade + blur keeps slopes gentle).
 - Ground render: pixel texture at CELL=2 world units (16×16 px per tile), built lazily per CHUNK=8 tiles (`buildChunk`),
   noise-jittered borders, NW hillshade from `elev`. Water pixels are transparent; animated water is drawn underneath.
+- Hero (`renderer.drawPlayer`): 3/4 view, 3 poses (front/back/side, side mirrored via `dir`), walk cycle from `P.walk`,
+  arms swing; the tool arm reaches the hand point used by tool drawing. Gear (hat/vest/shoes/shield) is drawn per pose.
 - Boar (`animals.js`, `ai: 'hostile'`, from day 2): winds up ("!"), charges, `G.hurt(dmg, x, y)` (armor, knockback, shake),
   rests (vulnerable), staggers when hit, avoids lit fires (150 units). XP per kill from `def.xp`.
 - Shipwreck crates (`structures.js wreck`, loot in `data/loot.js`): 1 at start, 1–2 each morning (`G.onNewDay`), max 3,

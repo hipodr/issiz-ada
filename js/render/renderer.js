@@ -246,37 +246,163 @@ export class Renderer {
   // what the hero holds: the tool for the current action, else the weapon
   heldTool(G) { return (G.P.usedT > 0 && G.P.used) || G.action?.tool || G.weapon()?.s.k || null; }
 
+  // Castaway hero, 3/4 top-down view: 3 poses (front / back / side, side mirrored for left),
+  // walk cycle with swinging arms, shaded clothes, stubble, messy hair. Local units: feet ≈ y+7, head top ≈ y-22.
   drawPlayer(G) {
-    const { ctx } = this, P = G.P, x = P.x, y = P.y, tm = G.clock;
-    const bob = P.moving ? Math.abs(Math.sin(P.walk)) * -1.6 : Math.sin(tm * 2) * .4, step = P.moving ? Math.sin(P.walk) * 2.5 : 0;
-    shadow(ctx, x, y + 7, 8, 3.2);
-    ctx.fillStyle = '#4a3a2c'; ctx.fillRect(x - 4, y + 1 + step * .3, 3, 6 - step * .4); ctx.fillRect(x + 1, y + 1 - step * .3, 3, 6 + step * .4);
+    const { ctx } = this, P = G.P, tm = G.clock, eq = G.eq || {};
+    const side = Math.abs(P.fx) > Math.abs(P.fy) * 1.15, back = !side && P.fy < 0, dir = side && P.fx < 0 ? -1 : 1;
+    const s = P.moving ? Math.sin(P.walk) : 0, bob = P.moving ? -Math.abs(Math.cos(P.walk)) * 1.3 : Math.sin(tm * 2) * .35;
+    const hurt = P.hurtT > 0, sick = G.S.sick > 0;
+    const SKIN = sick ? '#c2c48c' : '#e8b48a', SKIN_D = sick ? '#9da068' : '#c48660';
+    const SHIRT = hurt ? '#ff5a4a' : '#d9653b', SHIRT_D = hurt ? '#c23a2e' : '#a8462a', SHIRT_L = hurt ? '#ff8a7a' : '#ec8a5c';
+    const PANTS = '#566985', PANTS_D = '#3d4b63', HAIR = '#3a2416', HAIR_L = '#5a3a22';
+    const X = v => P.x + v * dir, Y = v => P.y + v;                       // local → world (mirrored when facing left)
+    const limb = (ax, ay, bx, by, w, c) => { ctx.strokeStyle = c; ctx.lineWidth = w; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(X(ax), Y(ay)); ctx.lineTo(X(bx), Y(by)); ctx.stroke(); };
+    const blob = (lx, ly, rx, ry, c) => { ctx.fillStyle = c; ctx.beginPath(); ctx.ellipse(X(lx), Y(ly), rx, ry, 0, 0, Math.PI * 2); ctx.fill(); };
+    shadow(ctx, P.x, P.y + 7, 7.5, 2.8);
+
+    // ---- legs ----
+    const foot = (fx, fy, far) => {
+      if (eq.feet) blob(fx + (side ? .8 : 0), fy + .4, side ? 2.6 : 2, 1.5, far ? '#5a3c24' : '#6e4a2c');
+      else blob(fx + (side ? .6 : 0), fy + .4, side ? 2 : 1.6, 1.2, far ? SKIN_D : SKIN);
+    };
+    if (side) {
+      const fa = [-s * 3.4, 6.4 - Math.max(0, -s) * 1.2], na = [s * 3.4, 6.4 - Math.max(0, s) * 1.2];
+      limb(0, -1 + bob, fa[0], fa[1] - 1.4, 3.4, PANTS_D); foot(fa[0], fa[1], true);
+      limb(0, -1 + bob, na[0], na[1] - 1.4, 3.6, PANTS); foot(na[0], na[1], false);
+    } else {
+      const l = 6.4 - Math.max(0, s) * 1.8, r = 6.4 - Math.max(0, -s) * 1.8;
+      limb(-2.3, -1 + bob, -2.5, l - 1.4, 3.6, PANTS); limb(2.3, -1 + bob, 2.5, r - 1.4, 3.6, PANTS_D);
+      // rolled-up cuffs
+      limb(-2.5, l - 2.2, -2.5, l - 1.6, 3.9, '#7d8fa8'); limb(2.5, r - 2.2, 2.5, r - 1.6, 3.9, '#6b7d96');
+      foot(-2.5, l, false); foot(2.5, r, true);
+    }
+
+    // ---- tool / hand target ----
     const tool = this.heldTool(G);
-    if (tool) {
-      const sw = P.swing > 0 ? Math.sin((1 - P.swing / .22) * Math.PI) * 1.4 : 0;
-      const ang = Math.atan2(P.fy, P.fx) - .9 + sw * 1.6, hx = x + P.fx * 5, hy = y - 5 + bob;
+    const sw = P.swing > 0 ? Math.sin((1 - P.swing / .22) * Math.PI) * 1.4 : 0;
+    const handW = [P.x + P.fx * 5, P.y - 5 + bob];                        // world hand position when holding something
+    const toLocal = ([wx, wy]) => [(wx - P.x) * dir, wy - P.y];
+    const drawTool = () => {
+      if (!tool) return;
+      const ang = Math.atan2(P.fy, P.fx) - .9 + sw * 1.6, [hx, hy] = handW;
       const len = tool === 'rod' ? 22 : tool === 'spear' ? 18 : 12, ex = hx + Math.cos(ang) * len, ey = hy + Math.sin(ang) * len;
       if (ITEMS[tool].food || ITEMS[tool].canteen || !ITEMS[tool].tool) {
-        circle(ctx, hx + P.fx * 4, hy + 3, 3.2, ITEMS[tool].c);
+        circle(ctx, hx + P.fx * 2, hy + 1, 3, ITEMS[tool].c);
       } else if (tool === 'bow') {
         const a = Math.atan2(P.fy, P.fx);
         ctx.strokeStyle = '#8a5a32'; ctx.lineWidth = 2.2; ctx.beginPath(); ctx.arc(hx + P.fx * 4, hy + P.fy * 4, 9, a - 1.2, a + 1.2); ctx.stroke();
+        ctx.strokeStyle = 'rgba(240,235,220,.8)'; ctx.lineWidth = .6; ctx.beginPath();
+        ctx.moveTo(hx + P.fx * 4 + Math.cos(a - 1.2) * 9, hy + P.fy * 4 + Math.sin(a - 1.2) * 9); ctx.lineTo(hx + P.fx * 4 + Math.cos(a + 1.2) * 9, hy + P.fy * 4 + Math.sin(a + 1.2) * 9); ctx.stroke();
       } else {
-        ctx.strokeStyle = '#7a5532'; ctx.lineWidth = tool === 'rod' ? 1.6 : tool === 'club' ? 3.6 : 2.2; ctx.beginPath(); ctx.moveTo(hx, hy); ctx.lineTo(ex, ey); ctx.stroke();
-        if (tool === 'axe') circle(ctx, ex, ey, 3, '#c9ccd1');
+        ctx.lineCap = 'round'; ctx.strokeStyle = '#7a5532'; ctx.lineWidth = tool === 'rod' ? 1.4 : tool === 'club' ? 3.4 : 2;
+        ctx.beginPath(); ctx.moveTo(hx, hy); ctx.lineTo(ex, ey); ctx.stroke();
+        if (tool === 'axe') {                                     // blade on one side of the handle, curved edge
+          const c = Math.cos(ang), n = Math.sin(ang), bx = -n * dir, by = c * dir;
+          ctx.fillStyle = '#c9ccd1'; ctx.beginPath(); ctx.moveTo(ex - c * 4.5, ey - n * 4.5); ctx.lineTo(ex, ey);
+          ctx.lineTo(ex + bx * 5 + c * 1.5, ey + by * 5 + n * 1.5); ctx.quadraticCurveTo(ex + bx * 6.5 - c * 2.5, ey + by * 6.5 - n * 2.5, ex + bx * 4.5 - c * 6, ey + by * 4.5 - n * 6); ctx.fill();
+          ctx.fillStyle = '#eef0f2'; ctx.fillRect(ex + bx * 5 - c * 2.4 - .5, ey + by * 5 - n * 2.4 - .5, 1, 1);
+        }
         if (tool === 'spear') { ctx.fillStyle = '#cfd3d8'; ctx.beginPath(); ctx.moveTo(ex + Math.cos(ang) * 6, ey + Math.sin(ang) * 6); ctx.lineTo(ex - Math.sin(ang) * 2.5, ey + Math.cos(ang) * 2.5); ctx.lineTo(ex + Math.sin(ang) * 2.5, ey - Math.cos(ang) * 2.5); ctx.fill(); }
-        if (tool === 'pick') { ctx.strokeStyle = '#c9ccd1'; ctx.lineWidth = 2.4; ctx.beginPath(); ctx.moveTo(ex - Math.sin(ang) * 5, ey + Math.cos(ang) * 5); ctx.lineTo(ex + Math.sin(ang) * 5, ey - Math.cos(ang) * 5); ctx.stroke(); }
+        if (tool === 'pick') { ctx.strokeStyle = '#c9ccd1'; ctx.lineWidth = 2.2; ctx.beginPath(); ctx.moveTo(ex - Math.sin(ang) * 5, ey + Math.cos(ang) * 5); ctx.quadraticCurveTo(ex + Math.cos(ang) * 1.5, ey + Math.sin(ang) * 1.5, ex + Math.sin(ang) * 5, ey - Math.cos(ang) * 5); ctx.stroke(); }
       }
+    };
+    // arm: shoulder → elbow → hand, sleeve on the upper half
+    const arm = (sx, sy, hx, hy, far) => {
+      const mx = (sx + hx) / 2 + (side ? -.6 : 0), my = (sy + hy) / 2;
+      limb(mx, my, hx, hy, 2.3, far ? SKIN_D : SKIN);
+      limb(sx, sy, mx, my, 3.1, far ? SHIRT_D : SHIRT);
+      blob(hx, hy, 1.5, 1.5, far ? SKIN_D : SKIN);
+    };
+    const holdArm = tool ? toLocal(handW) : null;
+    const shY = -10.5 + bob;
+
+    // ---- torso ----
+    const torso = () => {
+      const w = side ? 3.6 : 5.4, hw = side ? 3.2 : 4.4, top = -12 + bob, hip = -.6 + bob;
+      const g = ctx.createLinearGradient(X(-w), 0, X(w), 0); g.addColorStop(0, SHIRT_L); g.addColorStop(.55, SHIRT); g.addColorStop(1, SHIRT_D);
+      ctx.fillStyle = g; ctx.beginPath();
+      ctx.moveTo(X(-w), Y(top + .8)); ctx.quadraticCurveTo(X(-w - .8), Y(top + 6), X(-hw), Y(hip));
+      ctx.lineTo(X(hw), Y(hip)); ctx.quadraticCurveTo(X(w + .8), Y(top + 6), X(w), Y(top + .8));
+      ctx.quadraticCurveTo(X(0), Y(top - 1), X(-w), Y(top + .8)); ctx.fill();
+      // ragged hem
+      ctx.fillStyle = SHIRT_D; for (let i = -hw; i < hw - .5; i += 2) { ctx.beginPath(); ctx.moveTo(X(i), Y(hip)); ctx.lineTo(X(i + 1), Y(hip + 1.1 + (i * 7 % 3) * .2)); ctx.lineTo(X(i + 2), Y(hip)); ctx.fill(); }
+      // belt / rope
+      ctx.fillStyle = '#6a4a2a'; ctx.fillRect(Math.min(X(-hw - .2), X(hw + .2)), Y(hip - 2.4), (hw + .2) * 2, 1.3);
+      if (!side && !back) { ctx.fillStyle = SKIN_D; ctx.beginPath(); ctx.moveTo(X(-1.6), Y(top)); ctx.lineTo(X(0), Y(top + 3)); ctx.lineTo(X(1.6), Y(top)); ctx.fill(); }   // open collar
+      if (!side) { ctx.strokeStyle = 'rgba(0,0,0,.12)'; ctx.lineWidth = .7; ctx.beginPath(); ctx.moveTo(X(1.8), Y(top + 3)); ctx.quadraticCurveTo(X(2.4), Y(top + 7), X(1.4), Y(hip - 3)); ctx.stroke(); }   // fold
+      if (eq.body) {                                                       // leather vest
+        ctx.fillStyle = '#8a6a44';
+        if (back) { ctx.beginPath(); ctx.moveTo(X(-w + .4), Y(top + 1)); ctx.lineTo(X(-hw + .3), Y(hip - .3)); ctx.lineTo(X(hw - .3), Y(hip - .3)); ctx.lineTo(X(w - .4), Y(top + 1)); ctx.fill(); }
+        else if (side) { ctx.beginPath(); ctx.moveTo(X(-w + .3), Y(top + 1)); ctx.lineTo(X(-hw + .2), Y(hip - .3)); ctx.lineTo(X(1.2), Y(hip - .3)); ctx.lineTo(X(.6), Y(top + .4)); ctx.fill(); }
+        else for (const sg of [-1, 1]) { ctx.beginPath(); ctx.moveTo(X(sg * w * .95), Y(top + 1)); ctx.lineTo(X(sg * hw * .95), Y(hip - .3)); ctx.lineTo(X(sg * 1.3), Y(hip - .3)); ctx.lineTo(X(sg * 1.7), Y(top + .3)); ctx.fill(); }
+        ctx.fillStyle = 'rgba(255,255,255,.12)'; ctx.fillRect(Math.min(X(-w + .6), X(-w + 1.4)), Y(top + 2), .8, 7);
+      }
+    };
+
+    // ---- head ----
+    const head = () => {
+      const hy = -17.2 + bob;
+      limb(0, -13 + bob, 0, -12 + bob, 2.8, SKIN_D);                       // neck
+      const g = ctx.createRadialGradient(X(-1.5), Y(hy - 1.5), .5, X(0), Y(hy), 5.6); g.addColorStop(0, SKIN); g.addColorStop(1, SKIN_D);
+      ctx.fillStyle = g; ctx.beginPath(); ctx.ellipse(X(side ? .3 : 0), Y(hy), side ? 4.6 : 4.8, 5.2, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = HAIR;
+      if (back) {
+        ctx.beginPath(); ctx.ellipse(X(0), Y(hy - .4), 5.1, 5.1, 0, 0, Math.PI * 2); ctx.fill();
+        blob(-4.9, hy + .6, 1, 1.4, SKIN_D); blob(4.9, hy + .6, 1, 1.4, SKIN_D);
+        ctx.strokeStyle = HAIR_L; ctx.lineWidth = .7; ctx.beginPath(); for (const k of [-2.4, 0, 2.2]) { ctx.moveTo(X(k), Y(hy - 4.5)); ctx.quadraticCurveTo(X(k + .8), Y(hy), X(k - .3), Y(hy + 4.2)); } ctx.stroke();
+      } else if (side) {
+        ctx.beginPath(); ctx.moveTo(X(4.4), Y(hy - 2.6)); ctx.quadraticCurveTo(X(3), Y(hy - 6.4), X(-1), Y(hy - 5.6));
+        ctx.quadraticCurveTo(X(-5.2), Y(hy - 4.4), X(-4.6), Y(hy + 2.8)); ctx.lineTo(X(-2.4), Y(hy + 3.6)); ctx.lineTo(X(-1.2), Y(hy - 1));
+        ctx.lineTo(X(1.4), Y(hy - 2.4)); ctx.lineTo(X(2.6), Y(hy - 1.6)); ctx.closePath(); ctx.fill();
+        blob(-.8, hy + .4, 1, 1.3, SKIN_D);                                // ear
+        blob(2.8, hy - .2, .65, .8, '#2a1a10');                            // eye
+        ctx.fillStyle = SKIN; ctx.beginPath(); ctx.moveTo(X(4.6), Y(hy - .4)); ctx.lineTo(X(5.6), Y(hy + 1.2)); ctx.lineTo(X(4.5), Y(hy + 1.6)); ctx.fill();   // nose
+        ctx.fillStyle = 'rgba(70,45,30,.35)'; ctx.beginPath(); ctx.ellipse(X(1.8), Y(hy + 3.2), 2.8, 1.6, 0, 0, Math.PI * 2); ctx.fill();   // stubble
+      } else {
+        blob(-4.8, hy + .3, 1, 1.4, SKIN_D); blob(4.8, hy + .3, 1, 1.4, SKIN_D);   // ears
+        ctx.fillStyle = HAIR; ctx.beginPath(); ctx.moveTo(X(-5.2), Y(hy + 1)); ctx.quadraticCurveTo(X(-5.6), Y(hy - 6.2), X(0), Y(hy - 5.8));
+        ctx.quadraticCurveTo(X(5.6), Y(hy - 6.2), X(5.2), Y(hy + 1)); ctx.lineTo(X(4.2), Y(hy - 1.8));
+        ctx.lineTo(X(2.6), Y(hy - 2.6)); ctx.lineTo(X(1.2), Y(hy - 1.8)); ctx.lineTo(X(-.4), Y(hy - 2.9)); ctx.lineTo(X(-2), Y(hy - 2)); ctx.lineTo(X(-3.4), Y(hy - 2.7)); ctx.lineTo(X(-4.3), Y(hy - 1.6)); ctx.closePath(); ctx.fill();
+        ctx.strokeStyle = HAIR_L; ctx.lineWidth = .6; ctx.beginPath(); ctx.moveTo(X(-3), Y(hy - 5)); ctx.quadraticCurveTo(X(-1), Y(hy - 6), X(2), Y(hy - 4.6)); ctx.stroke();
+        const lx = P.fx * .6;
+        ctx.fillStyle = 'rgba(40,25,15,.8)'; ctx.fillRect(X(-2.9 + lx), Y(hy - 1.4), 2, .6); ctx.fillRect(X(.9 + lx), Y(hy - 1.4), 2, .6);   // brows
+        blob(-1.8 + lx, hy, .65, .8, '#2a1a10'); blob(1.8 + lx, hy, .65, .8, '#2a1a10');                                             // eyes
+        ctx.fillStyle = SKIN_D; ctx.fillRect(X(-.4 + lx), Y(hy + .8), .8, 1.2);                                                      // nose
+        ctx.fillStyle = 'rgba(70,45,30,.32)'; ctx.beginPath(); ctx.ellipse(X(lx * .5), Y(hy + 3), 3.4, 1.9, 0, 0, Math.PI); ctx.fill();   // stubble
+        ctx.fillStyle = 'rgba(110,50,40,.7)'; ctx.fillRect(X(-1 + lx * .5), Y(hy + 2.6), 2, .5);                                    // mouth
+      }
+      if (eq.head) {                                                        // straw hat
+        const t = hy - 3.6;
+        ctx.fillStyle = '#d9b862'; ctx.beginPath(); ctx.ellipse(X(0), Y(t), 8.6, 3, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#e9cf84'; ctx.beginPath(); ctx.ellipse(X(0), Y(t - 1.4), 4.6, 3.6, 0, Math.PI, 0); ctx.fill(); ctx.fillRect(Math.min(X(-4.6), X(4.6)), Y(t - 1.6), 9.2, 1.6);
+        ctx.fillStyle = '#b84a34'; ctx.fillRect(Math.min(X(-4.6), X(4.6)), Y(t - 1.2), 9.2, 1.2);
+      }
+    };
+    const shield = () => {
+      if (!eq.shield) return;
+      if (back) { blob(0, -6 + bob, 4.8, 5.4, '#7e5230'); blob(0, -6 + bob, 4, 4.6, '#9a6436'); blob(0, -6 + bob, 1.3, 1.3, '#c9ccd1'); }
+      else if (side) { blob(-2.6, -5.6 + bob, 2.2, 5.4, '#7e5230'); blob(-2.2, -5.6 + bob, 1.4, 4.6, '#9a6436'); }
+      else { blob(-7, -5.6 + bob, 4.6, 5, '#7e5230'); blob(-7, -5.6 + bob, 3.8, 4.2, '#9a6436'); blob(-7, -5.6 + bob, 1.2, 1.2, '#c9ccd1'); }
+    };
+
+    // ---- assemble back to front ----
+    if (side) {
+      const far = [-s * 3.2 - .5, -3.2 + bob], near = holdArm || [s * 3.2 + .5, -3.2 + bob];
+      arm(-.6, shY, far[0], far[1], true);
+      if (eq.shield) shield();
+      torso(); head();
+      arm(.4, shY, near[0], near[1], false); drawTool();
+    } else if (back) {
+      drawTool();
+      const l = holdArm && P.fx * dir <= 0 ? holdArm : [-6, -3 + s * 1.2 + bob], r = holdArm && P.fx * dir > 0 ? holdArm : [6, -3 - s * 1.2 + bob];
+      arm(-5.2, shY, l[0], l[1], false); arm(5.2, shY, r[0], r[1], true);
+      torso(); head(); shield();
+    } else {
+      const r = holdArm || [6, -3 - s * 1.2 + bob], l = [-6, -3 + s * 1.2 + bob];
+      torso();
+      arm(-5.2, shY, l[0], l[1], false); arm(5.2, shY, r[0], r[1], true);
+      shield(); head(); drawTool();
     }
-    const eq = G.eq || {};
-    circle(ctx, x, y - 5 + bob, 7, P.hurtT > 0 ? '#ff4d4d' : G.S.sick > 0 ? '#9bbf5a' : '#e86a3a');
-    ctx.fillStyle = G.S.sick > 0 ? '#7da046' : '#c4532a'; ctx.fillRect(x - 7, y - 3 + bob, 14, 2);
-    if (eq.body) { ctx.fillStyle = '#9a7a52'; ctx.fillRect(x - 7, y - 10 + bob, 4, 9); ctx.fillRect(x + 3, y - 10 + bob, 4, 9); }
-    if (eq.feet) { ctx.fillStyle = '#7a5634'; ctx.fillRect(x - 5, y + 5 + step * .3, 5, 2.5); ctx.fillRect(x, y + 5 - step * .3, 5, 2.5); }
-    if (eq.shield) { const sx = x - P.fx * 2 + (P.fy >= 0 ? -7 : 7); circle(ctx, sx, y - 5 + bob, 5, '#9a6436'); circle(ctx, sx, y - 5 + bob, 1.6, '#c9ccd1'); }
-    circle(ctx, x, y - 14 + bob, 5.6, '#f0c49a');
-    ctx.fillStyle = '#3a2a1e'; ctx.beginPath(); ctx.arc(x, y - 15 + bob, 5.8, Math.PI * 1.05, Math.PI * 1.95); ctx.fill();
-    if (P.fy > -.4) { ctx.fillStyle = '#2a1d14'; const ex = P.fx * 2.2; ctx.fillRect(x - 2.6 + ex, y - 14 + bob, 1.6, 1.8); ctx.fillRect(x + 1 + ex, y - 14 + bob, 1.6, 1.8); }
-    if (eq.head) { ctx.fillStyle = '#e2c26b'; ctx.beginPath(); ctx.ellipse(x, y - 18 + bob, 9, 2.6, 0, 0, Math.PI * 2); ctx.fill(); circle(ctx, x, y - 19.5 + bob, 4.4, '#ecd38a'); ctx.fillStyle = '#c0503a'; ctx.fillRect(x - 4.4, y - 19 + bob, 8.8, 1.4); }
   }
 }

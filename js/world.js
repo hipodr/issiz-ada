@@ -148,14 +148,17 @@ export class World {
     this.ponds = ponds;
     this.genElevation(s);
 
-    // spawn point: land tile nearest the centre, not touching a pond
+    // spawn point: low land near the centre, not touching a pond, far from crags
     let sp = [MAP >> 1, MAP >> 1], best = 1e9;
     for (let y = 1; y < MAP - 1; y++) for (let x = 1; x < MAP - 1; x++) {
       if (!isLandTile(at(x, y)) || this.crag[y * MAP + x]) continue;
       let wet = false;
       for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (at(x + dx, y + dy) === POND) wet = true;
       if (wet) continue;
-      const d = (x - MAP / 2) ** 2 + (y - MAP / 2) ** 2;
+      let rocky = false;                                    // keep crags well away so the start is never boxed in
+      for (let dy = -6; dy <= 6 && !rocky; dy++) for (let dx = -6; dx <= 6; dx++) if (this.crag[(y + dy) * MAP + x + dx]) { rocky = true; break; }
+      if (rocky) continue;
+      const d = (x - MAP / 2) ** 2 + (y - MAP / 2) ** 2 + this.elev[y * MAP + x] * 500;   // central, but not on a summit
       if (d < best) { best = d; sp = [x, y]; }
     }
     this.spawn = sp;
