@@ -45,18 +45,17 @@ button:focus-visible{outline:2px solid var(--sun);outline-offset:2px}
 .goal{padding:7px 11px;font-size:12px;max-width:min(42vw,190px);text-align:right;color:var(--fg)}
 .goal b{color:var(--sun);display:block;font-size:10px;letter-spacing:.08em;text-transform:uppercase;margin-bottom:2px}
 
-#inv{position:fixed;left:0;top:calc(env(safe-area-inset-top,0px) + 104px);display:flex;flex-wrap:wrap;gap:6px;width:min(60vw,300px);
-  padding:0 0 0 max(12px,env(safe-area-inset-left,0px));pointer-events:none}
-.chip{pointer-events:auto;display:inline-flex;align-items:center;gap:6px;padding:5px 9px 5px 6px;font-size:12px;font-variant-numeric:tabular-nums}
-.chip .ic{width:14px;height:14px;border-radius:4px;flex:none}
-.chip .eat{font-size:10px;font-weight:700;background:var(--sun);color:var(--sun-ink);border-radius:6px;padding:2px 5px;margin-left:2px}
-.chip.food{cursor:pointer}
-
+.ico{display:inline-block;width:20px;height:20px;flex:none;vertical-align:middle}
+.ico svg{width:100%;height:100%;display:block}
 /* controls */
 #controls{position:fixed;right:0;bottom:0;display:flex;align-items:flex-end;gap:12px;
   padding:0 max(18px,calc(env(safe-area-inset-right,0px) + 12px)) calc(env(safe-area-inset-bottom,0px) + 22px) 0}
-#craftBtn{width:58px;height:58px;border-radius:50%;display:grid;place-items:center;font-size:11px;font-weight:700;gap:0;margin-bottom:6px}
-#craftBtn svg{width:22px;height:22px;display:block;margin:0 auto 1px}
+#craftBtn,#bagBtn{position:relative;width:58px;height:58px;border-radius:50%;display:grid;place-items:center;font-size:11px;font-weight:700;gap:0;margin-bottom:6px}
+#craftBtn svg,#bagBtn svg{width:22px;height:22px;display:block;margin:0 auto 1px}
+#bagBtn .badge{position:absolute;top:-4px;right:-4px;min-width:22px;height:22px;padding:0 6px;border-radius:11px;background:var(--fg);color:#10222b;
+  font-size:11px;font-weight:800;display:grid;place-items:center;font-variant-numeric:tabular-nums}
+#bagBtn.bump{animation:bump .35s ease}
+@keyframes bump{30%{transform:scale(1.16)}100%{transform:scale(1)}}
 #actBtn{width:86px;height:86px;border-radius:50%;background:var(--sun);color:var(--sun-ink);font-weight:800;font-size:16px;
   box-shadow:0 6px 0 #b85f14,0 10px 24px rgba(0,0,0,.35);transition:transform .06s,box-shadow .06s,opacity .2s}
 #actBtn.down{transform:translateY(5px);box-shadow:0 1px 0 #b85f14,0 4px 12px rgba(0,0,0,.3)}
@@ -72,13 +71,29 @@ button:focus-visible{outline:2px solid var(--sun);outline-offset:2px}
 #toast.show{opacity:1;transform:translate(-50%,0)}
 
 /* sheets & screens */
-#craft{position:fixed;left:0;right:0;bottom:0;z-index:6;background:var(--panel-solid);border-top:1px solid var(--line);border-radius:20px 20px 0 0;
+#craft,#bag{position:fixed;left:0;right:0;bottom:0;z-index:6;background:var(--panel-solid);border-top:1px solid var(--line);border-radius:20px 20px 0 0;
   padding:16px max(16px,env(safe-area-inset-right,0px)) calc(env(safe-area-inset-bottom,0px) + 16px) max(16px,env(safe-area-inset-left,0px));
   display:grid;gap:10px;max-height:80%;overflow:auto}
-#craft h2{margin:0;font-size:18px;display:flex;justify-content:space-between;align-items:center}
-#craft h2 button{font-size:14px;color:var(--muted);padding:6px 4px}
+#craft h2,#bag h2{margin:0;font-size:18px;display:flex;justify-content:space-between;align-items:center}
+#craft h2 button,#bag h2 button{font-size:14px;color:var(--muted);padding:6px 4px}
 .rec{display:grid;grid-template-columns:1fr auto;gap:4px 12px;align-items:center;padding:12px;border-radius:14px;background:rgba(255,255,255,.05);border:1px solid var(--line)}
-.rec .nm{font-weight:700;font-size:16px}
+.rec .nm{font-weight:700;font-size:16px;display:flex;align-items:center;gap:8px}
+.rec .cost span{display:inline-flex;align-items:center;gap:4px}
+.rec .cost .ico{width:15px;height:15px}
+.sec{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-top:4px}
+.tools{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.tool{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:14px;background:rgba(255,255,255,.05);border:1px solid var(--line);font-weight:700}
+.tool .ico{width:30px;height:30px}
+.tool small{display:block;font-weight:500;color:var(--muted);font-size:11px}
+.tool.no{opacity:.45}
+.slots{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.slot{aspect-ratio:1;max-width:100%;border-radius:14px;background:rgba(255,255,255,.05);border:1px solid var(--line);position:relative;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:11px;color:var(--muted);min-width:0}
+.slot .ico{width:34px;height:34px}
+.slot .cnt{position:absolute;right:6px;top:4px;font-weight:800;font-size:13px;color:var(--fg);font-variant-numeric:tabular-nums}
+.slot.empty{background:rgba(255,255,255,.025);border-style:dashed}
+.slot .eat{position:absolute;left:4px;right:4px;bottom:4px;font-size:11px;font-weight:800;background:var(--sun);color:var(--sun-ink);border-radius:8px;padding:4px 0}
+.slot.food .nm{display:none}
 .rec .ds{grid-column:1;color:var(--muted);font-size:12px}
 .rec .cost{grid-column:1;display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
 .rec .cost span{font-size:12px;padding:3px 7px;border-radius:7px;background:rgba(255,255,255,.07);font-variant-numeric:tabular-nums}
@@ -116,11 +131,13 @@ button:focus-visible{outline:2px solid var(--sun);outline-offset:2px}
     <div class="card goal"><b>Hedef</b><span id="goalLbl"></span></div>
   </div>
 </div>
-<div id="inv"></div>
 
 <div id="joy" hidden><div id="knob"></div></div>
 <div id="hint">Ekranda parmağını sürükle: yürü</div>
 <div id="controls">
+  <button id="bagBtn" class="card" type="button" aria-label="Sırt çantası">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9a6 6 0 0 1 12 0v10a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2z"/><path d="M9 5V4a3 3 0 0 1 6 0v1"/><path d="M8 14h8v4H8z"/></svg>Çanta<span class="badge" id="bagCount">0</span>
+  </button>
   <button id="craftBtn" class="card" type="button" aria-label="Üret">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4l6 6-3 3-6-6z"/><path d="M11 7L3 15l3 3 8-8"/></svg>Üret
   </button>
@@ -134,13 +151,22 @@ button:focus-visible{outline:2px solid var(--sun);outline-offset:2px}
   <div id="recs"></div>
 </div>
 
+<div id="bag" hidden role="dialog" aria-label="Sırt çantası">
+  <h2>Sırt çantası <button id="bagClose" type="button">Kapat</button></h2>
+  <div class="sec">Aletler</div>
+  <div class="tools" id="bagTools"></div>
+  <div class="sec">Eşyalar</div>
+  <div class="slots" id="bagSlots"></div>
+</div>
+
 <div id="menu" class="screen">
   <h1>Issız <em>Ada</em></h1>
-  <p>Gemin battı, bir adaya düştün. Odun ve taş topla, ateş yak, geceleri hayatta kal ve bir sal yapıp kaç.</p>
+  <p>Gemin battı, bir adaya düştün. Yerden dal ve çakıl topla, alet yap, ateş yak, geceleri hayatta kal ve bir sal yapıp kaç.</p>
   <ul>
     <li><b>Yürümek</b>Ekranın herhangi bir yerinde parmağını sürükle</li>
-    <li><b>Turuncu tuş</b>Kes, kır, topla, su iç (basılı tutabilirsin)</li>
-    <li><b>Üret</b>Balta, kamp ateşi ve sal</li>
+    <li><b>Turuncu tuş</b>Al, kes, kır, topla, su iç (basılı tutabilirsin)</li>
+    <li><b>Çanta</b>Topladıkların burada, yiyecekleri buradan ye</li>
+    <li><b>Üret</b>Balta, kazma, kamp ateşi ve sal</li>
   </ul>
   <div class="row">
     <button class="big" id="contBtn" type="button" hidden>Devam et</button>
@@ -157,15 +183,27 @@ button:focus-visible{outline:2px solid var(--sun);outline-offset:2px}
 <script>
 'use strict';
 // ======================= constants =======================
-const T = 32, MAP = 72, DAY = 180, SPEED = 118, FIRE_MAX = 300, SAVE_KEY = 'issizada.v1';
+const T = 32, MAP = 72, DAY = 180, SPEED = 118, FIRE_MAX = 300, SAVE_KEY = 'issizada.v2', BAG_SLOTS = 8;
 const DEEP = 0, SHAL = 1, SAND = 2, GRASS = 3, FOREST = 4, POND = 5;
 const KIND = {
-  tree:  { r: 10, block: 1, max: 4, lbl: 'Kes' },
+  tree:  { r: 10, block: 1, max: 3, lbl: 'Kes' },
   palm:  { r: 7,  block: 1, max: 1, lbl: 'Topla' },
-  rock:  { r: 11, block: 1, max: 4, lbl: 'Kır' },
+  rock:  { r: 11, block: 1, max: 3, lbl: 'Kır' },
   bush:  { r: 6,  block: 0, max: 1, lbl: 'Topla' },
   grass: { r: 5,  block: 0, max: 1, lbl: 'Topla' },
+  stick: { r: 4,  block: 0, max: 1, lbl: 'Al' },
+  pebble:{ r: 4,  block: 0, max: 1, lbl: 'Al' },
 };
+const ICON = {
+  wood: '<rect x="2.5" y="8" width="18" height="9" rx="4.5" fill="#9a6436"/><rect x="5" y="10" width="9" height="1.4" rx=".7" fill="#7a4c26"/><ellipse cx="18" cy="12.5" rx="3.2" ry="4.5" fill="#dcae72"/><ellipse cx="18" cy="12.5" rx="1.4" ry="2" fill="#b07d45"/>',
+  stone: '<path d="M3.5 16.5l3-7.5 6.5-3 6 4 1.5 6.5-5.5 3H8z" fill="#8f928d"/><path d="M6.5 9l6.5-3 6 4-5.5 1.2z" fill="#c4c7c1"/><path d="M8 19.5l6-.2 5.5-3-1-1.5-5 2.2z" fill="#6f726d"/>',
+  fiber: '<path d="M8 21C8 14 6.5 8.5 4 4M12 21c0-7 .2-12 1.3-17M16 21c0-6 2-11 5-15" stroke="#9ccc5a" stroke-width="2.3" fill="none" stroke-linecap="round"/><path d="M6 15h12" stroke="#c7a46a" stroke-width="2.3" stroke-linecap="round"/>',
+  berry: '<path d="M12 7l2.2-3.5" stroke="#4a9443" stroke-width="2" stroke-linecap="round"/><circle cx="8.8" cy="14" r="4" fill="#d93a4c"/><circle cx="15.2" cy="15" r="4" fill="#c22f40"/><circle cx="12" cy="9.8" r="3.6" fill="#e8566a"/><circle cx="11" cy="8.8" r="1" fill="#ffd0d6"/>',
+  coconut: '<circle cx="12" cy="13" r="7.8" fill="#7a4f2a"/><path d="M6 10c2-3 7-4 10-2" stroke="#9a6a3c" stroke-width="1.4" fill="none"/><circle cx="10" cy="11" r="1.2" fill="#3a2414"/><circle cx="14" cy="11" r="1.2" fill="#3a2414"/><circle cx="12" cy="14.2" r="1.2" fill="#3a2414"/>',
+  axe: '<path d="M6 21.5L15.5 7" stroke="#8a5a32" stroke-width="2.6" stroke-linecap="round"/><path d="M12 4.2c3.5-2 7.6-.6 8.6 2.6l-4.6 4.4c-.6-2.3-2.6-3.8-5.2-3.6z" fill="#cfd3d8"/><path d="M16 11.2c-.6-2.3-2.6-3.8-5.2-3.6l.8-1.2c2.4 0 4.4 1.4 5.2 3.6z" fill="#9ea3a9"/>',
+  pick: '<path d="M8 21.5L14 8" stroke="#8a5a32" stroke-width="2.6" stroke-linecap="round"/><path d="M3.5 9.5C8 4.5 15 3.5 21 6.5c-4.5-.6-9 .3-12.5 3.4-1.8-.8-3.5-.9-5-.4z" fill="#cfd3d8"/>',
+};
+const ico = k => `<span class="ico"><svg viewBox="0 0 24 24">${ICON[k]}</svg></span>`;
 const ITEMS = {
   wood:    { n: 'Odun',  c: '#9a6436' },
   stone:   { n: 'Taş',   c: '#a3a6a0' },
@@ -173,13 +211,16 @@ const ITEMS = {
   berry:   { n: 'Meyve', c: '#d93a4c', food: { hu: 12, th: 3 } },
   coconut: { n: 'Kokos', c: '#7a4f2a', food: { hu: 18, th: 22 } },
 };
+const TOOLS = { axe: { n: 'Balta', d: 'Ağaç keser' }, pick: { n: 'Kazma', d: 'Kaya kırar' } };
 const RECIPES = [
-  { id: 'axe',  n: 'Balta',      d: 'Ağaçları iki kat hızlı keser, her ağaçtan +1 odun.', cost: { wood: 3, stone: 2 } },
+  { id: 'axe',  n: 'Balta',      d: 'Ağaç kesmeni sağlar. Her ağaçtan 3 odun.', cost: { wood: 3, stone: 2 } },
+  { id: 'pick', n: 'Kazma',      d: 'Kaya kırmanı sağlar. Her kayadan 3 taş.', cost: { wood: 3, stone: 3 } },
   { id: 'fire', n: 'Kamp ateşi', d: 'Geceleri ısıtır ve aydınlatır. Odun atarak beslersin.', cost: { wood: 4, stone: 3 } },
   { id: 'raft', n: 'Sal',        d: 'Kıyıda yap ve adadan kaç. Balta gerekir.', cost: { wood: 20, fiber: 8 } },
 ];
 const GOALS = [
-  'Balta yap: 3 odun + 2 taş',
+  'Yerden dal ve çakıl topla, balta yap: 3 odun + 2 taş',
+  'Kazma yap: 3 odun + 3 taş',
   'Kamp ateşi yak: 4 odun + 3 taş',
   'Sal yap ve kaç: 20 odun + 8 lif, kıyıda',
 ];
@@ -248,9 +289,9 @@ function genWorld(seed) {
     const t = at(x, y), r = rnd();
     if (Math.hypot(x - sp[0], y - sp[1]) < 2.5) continue;
     let k = null;
-    if (t === FOREST) k = r < .33 ? 'tree' : r < .38 ? 'bush' : r < .43 ? 'grass' : null;
-    else if (t === GRASS) k = r < .05 ? 'tree' : r < .10 ? 'bush' : r < .18 ? 'grass' : r < .21 ? 'rock' : null;
-    else if (t === SAND) k = r < .05 ? 'palm' : r < .075 ? 'rock' : null;
+    if (t === FOREST) k = r < .33 ? 'tree' : r < .38 ? 'bush' : r < .43 ? 'grass' : r < .47 ? 'stick' : null;
+    else if (t === GRASS) k = r < .05 ? 'tree' : r < .10 ? 'bush' : r < .18 ? 'grass' : r < .21 ? 'rock' : r < .23 ? 'stick' : r < .245 ? 'pebble' : null;
+    else if (t === SAND) k = r < .05 ? 'palm' : r < .075 ? 'rock' : r < .095 ? 'pebble' : null;
     if (k) { add(k, x, y); occupied[y * MAP + x] = 1; }
   }
   // guarantee enough of the scarce materials
@@ -266,6 +307,17 @@ function genWorld(seed) {
   ensure('grass', 40, [GRASS, FOREST]);
   ensure('bush', 25, [GRASS, FOREST]);
   ensure('palm', 10, [SAND]);
+  ensure('stick', 45, [GRASS, FOREST]);
+  ensure('pebble', 35, [SAND, GRASS]);
+  // a starter cache of sticks and pebbles a few steps from the spawn point
+  for (const [k, n] of [['stick', 5], ['pebble', 4]]) {
+    let placed = 0;
+    for (let i = 0; i < 600 && placed < n; i++) {
+      const a = rnd() * Math.PI * 2, d = 3 + rnd() * 4, x = Math.round(sp[0] + Math.cos(a) * d), y = Math.round(sp[1] + Math.sin(a) * d);
+      const t = at(x, y); if ((t !== GRASS && t !== FOREST && t !== SAND) || occupied[y * MAP + x]) continue;
+      add(k, x, y); occupied[y * MAP + x] = 1; placed++;
+    }
+  }
 
   // pre-baked land colours + shoreline foam masks
   const col = new Array(N), foam = new Uint8Array(N);
@@ -291,8 +343,8 @@ WATER[POND] = [...Array(8)].map((_, i) => `hsl(196,62%,${(46 + i * 1.2).toFixed(
 // ======================= game state =======================
 let W = null;
 const P = { x: 0, y: 0, vx: 0, vy: 0, r: 8, fx: 0, fy: 1, walk: 0, moving: false, swing: 0 };
-const S = { state: 'menu', hp: 100, hunger: 100, thirst: 100, inv: {}, axe: false, time: .06, day: 1, coldWarned: false, lastWarn: 0 };
-let parts = [], floats = [], target = null, clock = 0, crafting = false, invDirty = true;
+const S = { state: 'menu', hp: 100, hunger: 100, thirst: 100, inv: {}, axe: false, pick: false, time: .06, day: 1, coldWarned: false, lastWarn: 0 };
+let parts = [], floats = [], target = null, clock = 0, sheet = null, invDirty = true;
 const cam = { x: 0, y: 0 };
 const input = { jx: 0, jy: 0, keys: new Set(), act: false, actCd: 0 };
 
@@ -304,7 +356,7 @@ function blocks(o) { return KIND[o.k].block && (o.alive || o.k === 'palm'); }
 function newGame(seed) {
   W = genWorld(seed ?? ((Math.random() * 2 ** 31) | 0));
   P.x = (W.spawn[0] + .5) * T; P.y = (W.spawn[1] + .5) * T; P.vx = P.vy = 0; P.fx = 0; P.fy = 1;
-  Object.assign(S, { hp: 100, hunger: 100, thirst: 100, axe: false, time: .06, day: 1, coldWarned: false });
+  Object.assign(S, { hp: 100, hunger: 100, thirst: 100, axe: false, pick: false, time: .06, day: 1, coldWarned: false });
   S.inv = { wood: 0, stone: 0, fiber: 0, berry: 0, coconut: 0 };
   parts = []; floats = []; cam.x = P.x; cam.y = P.y; invDirty = true;
 }
@@ -313,7 +365,7 @@ function saveGame() {
   if (S.state !== 'play' || !W) return;
   try {
     localStorage.setItem(SAVE_KEY, JSON.stringify({
-      seed: W.seed, p: [P.x, P.y], hp: S.hp, hu: S.hunger, th: S.thirst, inv: S.inv, axe: S.axe, time: S.time, day: S.day,
+      seed: W.seed, p: [P.x, P.y], hp: S.hp, hu: S.hunger, th: S.thirst, inv: S.inv, axe: S.axe, pick: S.pick, time: S.time, day: S.day,
       a: W.objs.map(o => o.alive), h: W.objs.map(o => o.hp), r: W.objs.map(o => Math.round(o.rg)), f: W.fires,
     }));
   } catch {}
@@ -323,7 +375,7 @@ function loadGame() {
     const d = JSON.parse(localStorage.getItem(SAVE_KEY) || 'null'); if (!d) return false;
     newGame(d.seed);
     P.x = d.p[0]; P.y = d.p[1]; cam.x = P.x; cam.y = P.y;
-    Object.assign(S, { hp: d.hp, hunger: d.hu, thirst: d.th, axe: d.axe, time: d.time, day: d.day });
+    Object.assign(S, { hp: d.hp, hunger: d.hu, thirst: d.th, axe: d.axe, pick: !!d.pick, time: d.time, day: d.day });
     Object.assign(S.inv, d.inv);
     W.objs.forEach((o, i) => { o.alive = d.a[i] ?? 1; o.hp = d.h[i] ?? KIND[o.k].max; o.rg = d.r[i] ?? 0; });
     W.fires = d.f || [];
@@ -370,7 +422,11 @@ function findTarget() {
       if (d > 22) continue;
       const facing = dist > 0 ? (ox * P.fx + oy * P.fy) / dist : 1;
       const sc = d - facing * 6;
-      if (sc < bs) { bs = sc; best = { type: 'obj', o, x: o.x, y: o.y, lbl: KIND[o.k].lbl }; }
+      if (sc < bs) {
+        bs = sc;
+        const locked = (o.k === 'tree' && !S.axe) || (o.k === 'rock' && !S.pick);
+        best = { type: 'obj', o, x: o.x, y: o.y, locked, lbl: locked ? (o.k === 'tree' ? 'Balta lazım' : 'Kazma lazım') : KIND[o.k].lbl };
+      }
     }
   }
   for (const f of W.fires) {
@@ -384,7 +440,7 @@ function findTarget() {
   return best;
 }
 
-const PCOL = { tree: ['#7a5532', '#3f7d36', '#5a9a44'], palm: ['#7a4f2a', '#5a3a1e'], rock: ['#9a9c97', '#c9cbc5', '#6f716c'], bush: ['#d93a4c', '#4a9443'], grass: ['#9ccc5a', '#c6e48a'] };
+const PCOL = { stick: ['#8a5a32', '#b07d45'], pebble: ['#9a9c97', '#c9cbc5'], tree: ['#7a5532', '#3f7d36', '#5a9a44'], palm: ['#7a4f2a', '#5a3a1e'], rock: ['#9a9c97', '#c9cbc5', '#6f716c'], bush: ['#d93a4c', '#4a9443'], grass: ['#9ccc5a', '#c6e48a'] };
 function burst(x, y, cols, n = 9) {
   for (let i = 0; i < n; i++) {
     const a = Math.random() * Math.PI * 2, sp = 30 + Math.random() * 70;
@@ -392,10 +448,17 @@ function burst(x, y, cols, n = 9) {
   }
 }
 function floatText(x, y, txt, c = '#fff') { floats.push({ x, y, txt, c, life: 0 }); }
-function give(item, n) { S.inv[item] += n; floatText(P.x, P.y - 30, `+${n} ${ITEMS[item].n}`, '#fff6dc'); invDirty = true; }
+function give(item, n) {
+  S.inv[item] += n; floatText(P.x, P.y - 30, `+${n} ${ITEMS[item].n}`, '#fff6dc'); invDirty = true;
+  const b = $('bagBtn'); b.classList.remove('bump'); void b.offsetWidth; b.classList.add('bump');
+}
 
 function act() {
   const t = target; if (!t) return;
+  if (t.locked) {
+    if (clock - (S.lockMsg || 0) > 1.2) { S.lockMsg = clock; toast(t.o.k === 'tree' ? 'Ağaç kesmek için balta lazım' : 'Kaya kırmak için kazma lazım'); }
+    return;
+  }
   P.swing = .22;
   const ax = t.x - P.x, ay = t.y - P.y, m = Math.hypot(ax, ay);
   if (m > 0) { P.fx = ax / m; P.fy = ay / m; }
@@ -403,11 +466,13 @@ function act() {
   if (t.type === 'obj') {
     const o = t.o; o.hit = .2; burst(o.x, o.y - (o.k === 'tree' ? 14 : 4), PCOL[o.k]);
     if (o.k === 'palm') { o.alive = 0; o.rg = DAY * 1.1; give('coconut', 1); return; }
-    o.hp -= (o.k === 'tree' && S.axe) ? 2 : 1;
+    if (o.k === 'stick') { o.alive = 0; o.rg = DAY * 1.5; give('wood', 1); return; }
+    if (o.k === 'pebble') { o.alive = 0; o.rg = DAY * 1.5; give('stone', 1); return; }
+    o.hp -= 1;
     if (o.hp <= 0) {
       o.alive = 0; o.hp = 0;
-      if (o.k === 'tree') { give('wood', S.axe ? 3 : 2); o.rg = DAY * 2; }
-      else if (o.k === 'rock') { give('stone', 2); o.rg = DAY * 3; }
+      if (o.k === 'tree') { give('wood', 3); o.rg = DAY * 2; }
+      else if (o.k === 'rock') { give('stone', 3); o.rg = DAY * 3; }
       else if (o.k === 'bush') { give('berry', 2); o.rg = DAY; }
       else if (o.k === 'grass') { give('fiber', 1); o.rg = DAY * .8; }
     }
@@ -504,7 +569,8 @@ function idle(dt) {
 function craft(id) {
   const r = RECIPES.find(x => x.id === id);
   if (!canAfford(r.cost)) return;
-  if (id === 'axe') { if (S.axe) return; S.axe = true; toast('Balta hazır!'); }
+  if (id === 'axe') { if (S.axe) return; S.axe = true; toast('Balta hazır! Artık ağaç kesebilirsin'); }
+  if (id === 'pick') { if (S.pick) return; S.pick = true; toast('Kazma hazır! Artık kaya kırabilirsin'); }
   if (id === 'fire') {
     let fx = P.x + P.fx * 22, fy = P.y + P.fy * 22, ok = false;
     for (const [dx, dy] of [[0, 0], [0, 22], [22, 0], [-22, 0], [0, -22]]) {
@@ -526,7 +592,7 @@ function craft(id) {
   }
   for (const [k, v] of Object.entries(r.cost)) S.inv[k] -= v;
   invDirty = true; vibrate(25);
-  closeCraft();
+  closeSheet();
   if (id === 'raft') endGame(true);
 }
 function canAfford(cost) { return Object.entries(cost).every(([k, v]) => S.inv[k] >= v); }
@@ -655,6 +721,22 @@ function shadow(x, y, rx, ry) { ctx.fillStyle = 'rgba(0,0,0,.22)'; ctx.beginPath
 function circle(x, y, r, c) { ctx.fillStyle = c; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill(); }
 
 const DRAW = {
+  stick(o) {
+    if (!o.alive) return;
+    const a = (o.v - .5) * 2.4, c = Math.cos(a), s = Math.sin(a);
+    ctx.strokeStyle = 'rgba(0,0,0,.2)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(o.x - c * 9, o.y - s * 4 + 2); ctx.lineTo(o.x + c * 9, o.y + s * 4 + 2); ctx.stroke();
+    ctx.strokeStyle = '#8a5a32'; ctx.lineWidth = 2.6; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(o.x - c * 9, o.y - s * 4); ctx.lineTo(o.x + c * 9, o.y + s * 4);
+    ctx.moveTo(o.x + c * 2, o.y + s * 1); ctx.lineTo(o.x + c * 5 - s * 5, o.y + s * 3 - 4); ctx.stroke(); ctx.lineCap = 'butt';
+  },
+  pebble(o) {
+    if (!o.alive) return;
+    const j = (o.v - .5) * 6;
+    shadow(o.x, o.y + 2, 8, 3);
+    ctx.fillStyle = '#8d908b'; ctx.beginPath(); ctx.ellipse(o.x - 3 + j * .3, o.y, 4.2, 3, .3, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#a9aca6'; ctx.beginPath(); ctx.ellipse(o.x + 3, o.y + 1 + j * .2, 3.4, 2.5, -.2, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#c9ccc5'; ctx.beginPath(); ctx.ellipse(o.x - 4 + j * .3, o.y - 1, 1.6, 1, .3, 0, Math.PI * 2); ctx.fill();
+  },
   tree(o) {
     const s = .9 + o.v * .28, w = o.hit > 0 ? Math.sin(o.hit * 70) * 2.2 : 0;
     if (!o.alive) { shadow(o.x, o.y + 2, 8, 3.5); circle(o.x, o.y, 6, '#6b4a2b'); circle(o.x, o.y - 1, 4.2, '#b88a5a'); return; }
@@ -734,12 +816,15 @@ function drawPlayer() {
   shadow(x, y + 7, 8, 3.2);
   ctx.fillStyle = '#4a3a2c'; ctx.fillRect(x - 4, y + 1 + step * .3, 3, 6 - step * .4); ctx.fillRect(x + 1, y + 1 - step * .3, 3, 6 + step * .4);
   // tool swing
-  if (P.swing > 0 || S.axe) {
+  const usePick = S.pick && (!S.axe || (target && target.o && target.o.k === 'rock'));
+  if (P.swing > 0 || S.axe || S.pick) {
     const sw = P.swing > 0 ? Math.sin((1 - P.swing / .22) * Math.PI) * 1.4 : 0;
     const ang = Math.atan2(P.fy, P.fx) - .9 + sw * 1.6;
     const hx = x + P.fx * 5, hy = y - 5 + bob;
     ctx.strokeStyle = '#7a5532'; ctx.lineWidth = 2.2; ctx.beginPath(); ctx.moveTo(hx, hy); ctx.lineTo(hx + Math.cos(ang) * 12, hy + Math.sin(ang) * 12); ctx.stroke();
-    if (S.axe) circle(hx + Math.cos(ang) * 12, hy + Math.sin(ang) * 12, 3, '#c9ccd1');
+    const ex = hx + Math.cos(ang) * 12, ey = hy + Math.sin(ang) * 12;
+    if (usePick) { ctx.strokeStyle = '#c9ccd1'; ctx.lineWidth = 2.4; ctx.beginPath(); ctx.moveTo(ex - Math.sin(ang) * 5, ey + Math.cos(ang) * 5); ctx.lineTo(ex + Math.sin(ang) * 5, ey - Math.cos(ang) * 5); ctx.stroke(); }
+    else if (S.axe) circle(ex, ey, 3, '#c9ccd1');
   }
   circle(x, y - 5 + bob, 7, '#e86a3a');            // shirt
   ctx.fillStyle = '#c4532a'; ctx.fillRect(x - 7, y - 3 + bob, 14, 2);
@@ -755,32 +840,40 @@ function hud(dt) {
   const set = (b, n, s, v) => { $(b).style.width = v.toFixed(1) + '%'; $(n).textContent = Math.ceil(v); $(s).classList.toggle('low', v < 25); };
   set('bHp', 'nHp', 'sHp', S.hp); set('bHu', 'nHu', 'sHu', S.hunger); set('bTh', 'nTh', 'sTh', S.thirst);
   $('dayLbl').textContent = S.day + '. gün'; $('todLbl').textContent = timeOfDay(S.time);
-  const goal = !S.axe ? 0 : !W.fires.length ? 1 : 2;
+  const goal = !S.axe ? 0 : !S.pick ? 1 : !W.fires.length ? 2 : 3;
   if (goal !== lastGoal) { lastGoal = goal; $('goalLbl').textContent = GOALS[goal]; }
   const lbl = (S.state === 'play' && target) ? target.lbl : '—';
-  if (lbl !== lastAct) { lastAct = lbl; $('actLbl').textContent = lbl; $('actBtn').classList.toggle('off', lbl === '—'); }
-  if (invDirty) { invDirty = false; renderInv(); if (crafting) renderRecipes(); }
+  if (lbl !== lastAct) { lastAct = lbl; $('actLbl').textContent = lbl; $('actBtn').classList.toggle('off', lbl === '—' || !!(target && target.locked)); }
+  if (invDirty) { invDirty = false; renderInv(); if (sheet === 'craft') renderRecipes(); if (sheet === 'bag') renderBag(); }
 }
 function renderInv() {
-  const box = $('inv'); box.textContent = '';
-  for (const [k, it] of Object.entries(ITEMS)) {
-    const n = S.inv[k] || 0;
-    if (!n && it.food) continue;
-    const c = document.createElement(it.food ? 'button' : 'div');
-    c.className = 'card chip' + (it.food ? ' food' : '');
-    if (it.food) { c.type = 'button'; c.onclick = () => eat(k); }
-    c.innerHTML = `<span class="ic" style="background:${it.c}"></span>${it.n} ${n}` + (it.food ? '<span class="eat">Ye</span>' : '');
-    box.appendChild(c);
+  $('bagCount').textContent = Object.values(S.inv).reduce((a, b) => a + b, 0);
+}
+function renderBag() {
+  $('bagTools').innerHTML = Object.entries(TOOLS).map(([k, t]) =>
+    `<div class="tool${S[k] ? '' : ' no'}">${ico(k)}<div>${t.n}<small>${S[k] ? t.d : 'Henüz yok'}</small></div></div>`).join('');
+  const box = $('bagSlots'); box.textContent = '';
+  const items = Object.entries(ITEMS).filter(([k]) => S.inv[k] > 0);
+  for (let i = 0; i < Math.max(BAG_SLOTS, items.length); i++) {
+    const el = document.createElement('div');
+    if (i >= items.length) { el.className = 'slot empty'; box.appendChild(el); continue; }
+    const [k, it] = items[i];
+    el.className = 'slot' + (it.food ? ' food' : '');
+    el.innerHTML = `${ico(k)}<span class="nm">${it.n}</span><span class="cnt">${S.inv[k]}</span>`;
+    if (it.food) {
+      const b = document.createElement('button'); b.type = 'button'; b.className = 'eat'; b.textContent = 'Ye';
+      b.onclick = () => eat(k); el.appendChild(b);
+    }
+    box.appendChild(el);
   }
-  if (S.axe) { const c = document.createElement('div'); c.className = 'card chip'; c.innerHTML = '<span class="ic" style="background:#c9ccd1"></span>Balta'; box.appendChild(c); }
 }
 function renderRecipes() {
   const box = $('recs'); box.textContent = '';
   for (const r of RECIPES) {
     const el = document.createElement('div'); el.className = 'rec';
-    const costs = Object.entries(r.cost).map(([k, v]) => `<span class="${S.inv[k] >= v ? '' : 'no'}">${ITEMS[k].n} ${S.inv[k]}/${v}</span>`).join('');
-    const done = r.id === 'axe' && S.axe, need = r.id === 'raft' && !S.axe;
-    el.innerHTML = `<div class="nm">${r.n}</div><div class="ds">${r.d}</div><div class="cost">${costs}</div>`;
+    const costs = Object.entries(r.cost).map(([k, v]) => `<span class="${S.inv[k] >= v ? '' : 'no'}">${ico(k)}${ITEMS[k].n} ${S.inv[k]}/${v}</span>`).join('');
+    const done = (r.id === 'axe' && S.axe) || (r.id === 'pick' && S.pick), need = r.id === 'raft' && !S.axe;
+    el.innerHTML = `<div class="nm">${ICON[r.id] ? ico(r.id) : ''}${r.n}</div><div class="ds">${r.d}</div><div class="cost">${costs}</div>`;
     const b = document.createElement('button'); b.type = 'button'; b.className = 'mk';
     b.textContent = done ? 'Yapıldı' : 'Yap'; b.disabled = done || need || !canAfford(r.cost);
     b.onclick = () => craft(r.id);
@@ -790,14 +883,19 @@ function renderRecipes() {
 let toastTimer = 0;
 function toast(msg) { const t = $('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 1900); }
 function vibrate(ms) { try { navigator.vibrate && navigator.vibrate(ms); } catch {} }
-function openCraft() { if (S.state !== 'play') return; crafting = true; renderRecipes(); $('craft').hidden = false; $('scrim').hidden = false; }
-function closeCraft() { crafting = false; $('craft').hidden = true; $('scrim').hidden = true; }
-function showControls(on) { for (const id of ['hud', 'inv', 'controls', 'hint']) $(id).hidden = !on; }
+function openSheet(name) {
+  if (S.state !== 'play') return;
+  closeSheet(); sheet = name; input.act = false; input.jx = input.jy = 0; joyId = null; $('joy').hidden = true;
+  name === 'craft' ? renderRecipes() : renderBag();
+  $(name).hidden = false; $('scrim').hidden = false;
+}
+function closeSheet() { sheet = null; $('craft').hidden = true; $('bag').hidden = true; $('scrim').hidden = true; }
+function showControls(on) { for (const id of ['hud', 'controls', 'hint']) $(id).hidden = !on; }
 
 // ======================= input =======================
 let joyId = null, jox = 0, joy0y = 0;
 cv.addEventListener('pointerdown', e => {
-  if (S.state !== 'play' || crafting || joyId !== null) return;
+  if (S.state !== 'play' || sheet || joyId !== null) return;
   joyId = e.pointerId; jox = e.clientX; joy0y = e.clientY;
   try { cv.setPointerCapture(e.pointerId); } catch {}
   const j = $('joy'); j.style.left = jox + 'px'; j.style.top = joy0y + 'px'; j.hidden = false; $('knob').style.transform = '';
@@ -818,19 +916,20 @@ const ab = $('actBtn');
 ab.addEventListener('pointerdown', e => { e.preventDefault(); input.act = true; input.actCd = 0; ab.classList.add('down'); });
 const actUp = () => { input.act = false; ab.classList.remove('down'); };
 ab.addEventListener('pointerup', actUp); ab.addEventListener('pointercancel', actUp); ab.addEventListener('pointerleave', actUp);
-$('craftBtn').onclick = openCraft;
-$('craftClose').onclick = closeCraft; $('scrim').onclick = closeCraft;
+$('craftBtn').onclick = () => openSheet('craft');
+$('bagBtn').onclick = () => openSheet('bag');
+$('craftClose').onclick = closeSheet; $('bagClose').onclick = closeSheet; $('scrim').onclick = closeSheet;
 window.addEventListener('contextmenu', e => e.preventDefault());
 window.addEventListener('keydown', e => {
   const k = e.key.toLowerCase();
   if (k === ' ' || k === 'e') { input.act = true; e.preventDefault(); return; }
-  if (k === 'c') { crafting ? closeCraft() : openCraft(); return; }
+  if (k === 'c' || k === 'b') { const n = k === 'c' ? 'craft' : 'bag'; sheet === n ? closeSheet() : openSheet(n); return; }
   input.keys.add(k);
 });
 window.addEventListener('keyup', e => { const k = e.key.toLowerCase(); if (k === ' ' || k === 'e') input.act = false; input.keys.delete(k); });
 
 function startPlay() { S.state = 'play'; $('menu').hidden = true; $('end').hidden = true; showControls(true); invDirty = true; lastGoal = -1; cam.x = P.x; cam.y = P.y; }
-$('newBtn').onclick = () => { clearSave(); newGame(); startPlay(); toast('Adaya hoş geldin. Ağaçları kes!'); saveGame(); };
+$('newBtn').onclick = () => { clearSave(); newGame(); startPlay(); toast('Yerdeki dal ve çakılları topla'); saveGame(); };
 $('contBtn').onclick = () => { if (loadGame()) startPlay(); else { newGame(); startPlay(); } };
 $('againBtn').onclick = () => { newGame(); startPlay(); saveGame(); };
 
@@ -846,7 +945,7 @@ if (hasSave()) $('contBtn').hidden = false;
 let last = 0;
 function frame(ts) {
   const dt = Math.min(.05, Math.max(0, (ts - last) / 1000)); last = ts;
-  if (S.state === 'play' && !crafting) update(dt); else idle(dt);
+  if (S.state === 'play' && !sheet) update(dt); else idle(dt);
   render(); hud(dt);
   requestAnimationFrame(frame);
 }
