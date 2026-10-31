@@ -1,9 +1,9 @@
 // Touch joystick (anywhere on the canvas), two action buttons, keyboard.
-// Keyboard: WASD / arrows move, Space = Kullan, E = El, 1-4 = hotbar, B bag, C craft, Esc close.
+// Keyboard: WASD / arrows move, Space or E = action, B bag, C craft tab, Esc close.
 export class Input {
-  constructor({ canvas, joy, knob, useBtn, grabBtn, onFirstMove, canMove, onKey }) {
+  constructor({ canvas, joy, knob, actBtn, onFirstMove, canMove, onKey }) {
     this.jx = 0; this.jy = 0; this.keys = new Set();
-    this.use = false; this.useCd = 0; this.grab = false; this.grabCd = 0;
+    this.act = false; this.actCd = 0;
     let id = null, ox = 0, oy = 0;
     canvas.addEventListener('pointerdown', e => {
       if (!canMove() || id !== null) return;
@@ -23,28 +23,21 @@ export class Input {
     const end = e => { if (e.pointerId !== id) return; id = null; this.jx = this.jy = 0; joy.hidden = true; };
     canvas.addEventListener('pointerup', end); canvas.addEventListener('pointercancel', end);
 
-    const hold = (btn, flag) => {
-      btn.addEventListener('pointerdown', e => { e.preventDefault(); this[flag] = true; this[flag + 'Cd'] = 0; btn.classList.add('down'); });
-      const up = () => { this[flag] = false; btn.classList.remove('down'); };
-      btn.addEventListener('pointerup', up); btn.addEventListener('pointercancel', up); btn.addEventListener('pointerleave', up);
-    };
-    hold(useBtn, 'use'); hold(grabBtn, 'grab');
-    this.release = () => {
-      id = null; this.jx = this.jy = 0; this.use = this.grab = false; joy.hidden = true;
-      useBtn.classList.remove('down'); grabBtn.classList.remove('down');
-    };
+    actBtn.addEventListener('pointerdown', e => { e.preventDefault(); this.act = true; this.actCd = 0; actBtn.classList.add('down'); });
+    const up = () => { this.act = false; actBtn.classList.remove('down'); };
+    actBtn.addEventListener('pointerup', up); actBtn.addEventListener('pointercancel', up); actBtn.addEventListener('pointerleave', up);
+    this.release = () => { id = null; this.jx = this.jy = 0; this.act = false; joy.hidden = true; actBtn.classList.remove('down'); };
 
     window.addEventListener('contextmenu', e => e.preventDefault());
     window.addEventListener('keydown', e => {
       const k = e.key.toLowerCase();
-      if (k === ' ') { if (!e.repeat) { this.use = true; this.useCd = 0; } e.preventDefault(); return; }
-      if (k === 'e') { if (!e.repeat) { this.grab = true; this.grabCd = 0; } return; }
+      if (k === ' ' || k === 'e') { if (!e.repeat) { this.act = true; this.actCd = 0; } e.preventDefault(); return; }
       if (onKey?.(k)) return;
       this.keys.add(k);
     });
     window.addEventListener('keyup', e => {
       const k = e.key.toLowerCase();
-      if (k === ' ') this.use = false; if (k === 'e') this.grab = false;
+      if (k === ' ' || k === 'e') this.act = false;
       this.keys.delete(k);
     });
   }

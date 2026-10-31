@@ -69,7 +69,7 @@ export class Renderer {
       ctx.save(); ctx.strokeStyle = tg.locked ? 'rgba(255,150,150,.7)' : col; ctx.lineWidth = 1.6; ctx.setLineDash([4, 4]); ctx.lineDashOffset = -tm * 10;
       ctx.beginPath(); ctx.ellipse(tg.x, tg.y + 3, r * p, r * .55 * p, 0, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
     };
-    if (playing) { ring(G.grabT, 'rgba(255,255,255,.8)'); ring(G.useT, 'rgba(255,165,70,.95)'); }
+    if (playing) ring(G.action, 'rgba(255,165,70,.95)');
 
     // y-sorted world objects
     const list = [];
@@ -142,7 +142,8 @@ export class Renderer {
     ctx.globalCompositeOperation = 'source-over';
   }
 
-  heldTool(G) { const h = G.held(); return h ? h.k : null; }
+  // what the hero holds: the tool for the current action, else the weapon
+  heldTool(G) { return (G.P.usedT > 0 && G.P.used) || G.action?.tool || G.weapon()?.s.k || null; }
 
   drawPlayer(G) {
     const { ctx } = this, P = G.P, x = P.x, y = P.y, tm = G.clock;
@@ -153,7 +154,7 @@ export class Renderer {
     if (tool) {
       const sw = P.swing > 0 ? Math.sin((1 - P.swing / .22) * Math.PI) * 1.4 : 0;
       const ang = Math.atan2(P.fy, P.fx) - .9 + sw * 1.6, hx = x + P.fx * 5, hy = y - 5 + bob;
-      const len = tool === 'rod' ? 22 : 12, ex = hx + Math.cos(ang) * len, ey = hy + Math.sin(ang) * len;
+      const len = tool === 'rod' ? 22 : tool === 'spear' ? 18 : 12, ex = hx + Math.cos(ang) * len, ey = hy + Math.sin(ang) * len;
       if (ITEMS[tool].food || ITEMS[tool].canteen || !ITEMS[tool].tool) {
         circle(ctx, hx + P.fx * 4, hy + 3, 3.2, ITEMS[tool].c);
       } else if (tool === 'bow') {
@@ -162,13 +163,19 @@ export class Renderer {
       } else {
         ctx.strokeStyle = '#7a5532'; ctx.lineWidth = tool === 'rod' ? 1.6 : tool === 'club' ? 3.6 : 2.2; ctx.beginPath(); ctx.moveTo(hx, hy); ctx.lineTo(ex, ey); ctx.stroke();
         if (tool === 'axe') circle(ctx, ex, ey, 3, '#c9ccd1');
+        if (tool === 'spear') { ctx.fillStyle = '#cfd3d8'; ctx.beginPath(); ctx.moveTo(ex + Math.cos(ang) * 6, ey + Math.sin(ang) * 6); ctx.lineTo(ex - Math.sin(ang) * 2.5, ey + Math.cos(ang) * 2.5); ctx.lineTo(ex + Math.sin(ang) * 2.5, ey - Math.cos(ang) * 2.5); ctx.fill(); }
         if (tool === 'pick') { ctx.strokeStyle = '#c9ccd1'; ctx.lineWidth = 2.4; ctx.beginPath(); ctx.moveTo(ex - Math.sin(ang) * 5, ey + Math.cos(ang) * 5); ctx.lineTo(ex + Math.sin(ang) * 5, ey - Math.cos(ang) * 5); ctx.stroke(); }
       }
     }
+    const eq = G.eq || {};
     circle(ctx, x, y - 5 + bob, 7, G.S.sick > 0 ? '#9bbf5a' : '#e86a3a');
     ctx.fillStyle = G.S.sick > 0 ? '#7da046' : '#c4532a'; ctx.fillRect(x - 7, y - 3 + bob, 14, 2);
+    if (eq.body) { ctx.fillStyle = '#9a7a52'; ctx.fillRect(x - 7, y - 10 + bob, 4, 9); ctx.fillRect(x + 3, y - 10 + bob, 4, 9); }
+    if (eq.feet) { ctx.fillStyle = '#7a5634'; ctx.fillRect(x - 5, y + 5 + step * .3, 5, 2.5); ctx.fillRect(x, y + 5 - step * .3, 5, 2.5); }
+    if (eq.shield) { const sx = x - P.fx * 2 + (P.fy >= 0 ? -7 : 7); circle(ctx, sx, y - 5 + bob, 5, '#9a6436'); circle(ctx, sx, y - 5 + bob, 1.6, '#c9ccd1'); }
     circle(ctx, x, y - 14 + bob, 5.6, '#f0c49a');
     ctx.fillStyle = '#3a2a1e'; ctx.beginPath(); ctx.arc(x, y - 15 + bob, 5.8, Math.PI * 1.05, Math.PI * 1.95); ctx.fill();
     if (P.fy > -.4) { ctx.fillStyle = '#2a1d14'; const ex = P.fx * 2.2; ctx.fillRect(x - 2.6 + ex, y - 14 + bob, 1.6, 1.8); ctx.fillRect(x + 1 + ex, y - 14 + bob, 1.6, 1.8); }
+    if (eq.head) { ctx.fillStyle = '#e2c26b'; ctx.beginPath(); ctx.ellipse(x, y - 18 + bob, 9, 2.6, 0, 0, Math.PI * 2); ctx.fill(); circle(ctx, x, y - 19.5 + bob, 4.4, '#ecd38a'); ctx.fillStyle = '#c0503a'; ctx.fillRect(x - 4.4, y - 19 + bob, 8.8, 1.4); }
   }
 }

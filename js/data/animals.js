@@ -11,7 +11,7 @@ import { shadow, circle, ellipse } from '../render/shapes.js';
 export const ANIMALS = {
   rabbit: {
     n: 'Tavşan', ai: 'flee', count: 22, tiles: [TILE.GRASS, TILE.FOREST],
-    hp: 1, speed: 35, fleeSpeed: 150, fleeDist: 95, hitR: 11, drops: [['meat', 2]],
+    hp: 1, speed: 35, fleeSpeed: 150, fleeDist: 95, hitR: 11, drops: [['meat', 2], ['hide', 1]],
     draw(ctx, a) {
       const hop = Math.abs(Math.sin(a.hop)) * 4, f = a.face || 1, x = a.x, y = a.y - hop;
       shadow(ctx, a.x, a.y + 2, 6, 2.4);

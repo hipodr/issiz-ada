@@ -3,15 +3,8 @@
 import { ITEMS, maxStack } from './data/items.js';
 
 export class Inventory {
-  /** hot = how many leading slots form the hotbar (tools go there first, everything else last) */
-  constructor(size, slots = null, hot = 0) { this.slots = slots || Array(size).fill(null); this.hot = hot; }
-
-  emptyOrder(k) {
-    const n = this.slots.length, all = [...Array(n).keys()];
-    if (!this.hot) return all;
-    const it = ITEMS[k], handy = it.tool || it.canteen;
-    return handy ? all : [...all.slice(this.hot), ...all.slice(0, this.hot)];
-  }
+  constructor(size, slots = null) { this.slots = slots || Array(size).fill(null); }
+  emptyOrder() { return [...this.slots.keys()]; }
 
   static stack(k, n = 1) {
     const it = ITEMS[k], s = { k, n };
@@ -49,6 +42,12 @@ export class Inventory {
   canAfford(cost) { return Object.entries(cost).every(([k, v]) => this.count(k) >= v); }
   pay(cost) { for (const [k, v] of Object.entries(cost)) this.remove(k, v); }
 
+  /** Index of the best tool whose dmg[mat] > 0 (highest damage, then most worn), -1 if none. */
+  toolFor(mat) {
+    let best = -1, bd = 0;
+    this.slots.forEach((s, i) => { const d = s && ITEMS[s.k].dmg?.[mat] || 0; if (d > bd || (d && d === bd && s.d < this.slots[best].d)) { best = i; bd = d; } });
+    return best;
+  }
   /** Index of the most worn tool of type k, -1 if none. */
   toolIndex(k) {
     let best = -1;

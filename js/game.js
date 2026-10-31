@@ -1,6 +1,6 @@
 // Game rules and simulation. No DOM: talks to the screen only through `this.ui`
 // (toast, bump, changed, vibrate, openChest, over), so it can be tested headless.
-import { T, MAP, DAY, SPEED, BAG_SLOTS, HOTBAR, FIRE_MAX, TILE, RATE, SICK_TIME, SAVE_VERSION, isSeaTile } from './config.js';
+import { T, MAP, DAY, SPEED, BAG_SLOTS, FIRE_MAX, TILE, RATE, SICK_TIME, SAVE_VERSION, isSeaTile } from './config.js';
 import { clamp, smooth, DIRS8 } from './util.js';
 import { World } from './world.js';
 import { Inventory } from './inventory.js';
@@ -9,18 +9,20 @@ import { RECIPES } from './data/recipes.js';
 import { RES } from './data/resources.js';
 import { STRUCT } from './data/structures.js';
 import { ANIMALS } from './data/animals.js';
+import { EQUIP_SLOTS, sumStats } from './data/equipment.js';
 
 const NOOP_UI = { toast() {}, bump() {}, changed() {}, vibrate() {}, openChest() {}, openFire() {}, over() {} };
 
 // Tutorial chain shown in the "Hedef" card; after the last one the game is open-ended.
 export const MILESTONES = [
-  { id: 'axe',  t: 'Yerden dal ve çakıl topla (El), balta yap' },
+  { id: 'axe',  t: 'Yerden dal ve çakıl topla, balta yap' },
   { id: 'pick', t: 'Kazma yap' },
   { id: 'fire', t: 'Kamp ateşi yak' },
   { id: 'rope', t: 'Liflerden ip yap' },
   { id: 'fish', t: 'Olta yap, kıyıda balık tut' },
   { id: 'cook', t: 'Balığı ateşte pişir (Ateş → koy, bekle, al)' },
   { id: 'hunt', t: 'Yay ve ok yap, tavşan avla' },
+  { id: 'wear', t: 'Postlardan giysi yap ve giy (Çanta)' },
 ];
 
 export class Game {
@@ -32,10 +34,11 @@ export class Game {
     const [sx, sy] = this.W.spawn;
     this.P = { x: (sx + .5) * T, y: (sy + .5) * T, vx: 0, vy: 0, r: 8, fx: 0, fy: 1, walk: 0, moving: false, swing: 0 };
     this.S = { hp: 100, hunger: 100, thirst: 100, sick: 0, time: .06, day: 1, coldWarned: false, lastWarn: -99, lockMsg: -99 };
-    this.inv = new Inventory(BAG_SLOTS, null, HOTBAR);
-    this.hand = 0;            // selected hotbar slot (0..HOTBAR-1) = item in hand
+    this.inv = new Inventory(BAG_SLOTS);
+    this.eq = {};             // equipment: slot id → stack (see data/equipment.js)
+    this.st = sumStats(this.eq);
     this.done = {};
-    this.fishing = null; this.grabT = null; this.useT = null; this.parts = []; this.floats = []; this.dead = false;
+    this.fishing = null; this.action = null; this.parts = []; this.floats = []; this.dead = false;
     this.cam = { x: this.P.x, y: this.P.y };
     this.animalTimer = 0;
     this.spawnAnimals(true);
@@ -46,7 +49,7 @@ export class Game {
     return {
       v: SAVE_VERSION, seed: W.seed, p: [P.x, P.y],
       s: { hp: S.hp, hunger: S.hunger, thirst: S.thirst, sick: S.sick, time: S.time, day: S.day },
-      inv: this.inv.slots, hand: this.hand, done: this.done, nextId: W.nextId,
+      inv: this.inv.slots, eq: this.eq, done: this.done, nextId: W.nextId,
       res: W.res.map(o => o.alive ? 0 : [o.hp, Math.round(o.rg)]),
       ents: W.ents.map(({ _gi, cat, ...e }) => e),
     };
@@ -58,7 +61,7 @@ export class Game {
     const W = g.W;
     g.P.x = d.p[0]; g.P.y = d.p[1]; g.cam.x = g.P.x; g.cam.y = g.P.y;
     Object.assign(g.S, d.s);
-    g.inv.slots = d.inv; g.hand = d.hand || 0; g.done = d.done || {};
+    g.inv.slots = d.inv; g.eq = d.eq || {}; g.st = sumStats(g.eq); g.done = d.done || {};
     d.res.forEach((st, i) => { const o = W.res[i]; if (!o || !st) return; o.alive = 0; o.hp = st[0]; W.scheduleRegrow(o, Math.max(1, st[1])); });
     for (const e of d.ents) { const n = W.addEnt(e.k, e.x, e.y, { ...e, __loaded: true }); STRUCT[n.k].fix?.(n); }
     W.nextId = Math.max(W.nextId, d.nextId || 1);
@@ -76,8 +79,39 @@ export class Game {
   timeOfDay(t = this.S.time) { return t < .12 ? 'Sabah' : t < .45 ? 'Öğle' : t < .6 ? 'Akşamüstü' : t < .68 ? 'Akşam' : t < .92 ? 'Gece' : 'Şafak'; }
   warmAt(x, y) { return this.W.ents.some(e => { const w = STRUCT[e.k].warm; return w && (e.x - x) ** 2 + (e.y - y) ** 2 < w(e) ** 2; }); }
   nearLitFire(r = 60) { return this.W.ents.some(e => e.k === 'fire' && e.fuel > 0 && Math.hypot(e.x - this.P.x, e.y - this.P.y) < r); }
-  held() { return this.inv.slots[this.hand] || null; }
-  setHand(i) { if (i === this.hand) return; this.hand = i; this.fishing = null; this.ui.changed(); }
+  /** The weapon used for attacks: equipped one, else the strongest in the bag. Returns { s, slot } or null. */
+  weapon() {
+    if (this.eq.weapon) return { s: this.eq.weapon, slot: 'eq' };
+    let best = -1;
+    this.inv.slots.forEach((s, i) => { if (s && ITEMS[s.k].melee && (best < 0 || ITEMS[s.k].melee > ITEMS[this.inv.slots[best].k].melee)) best = i; });
+    return best < 0 ? null : { s: this.inv.slots[best], slot: best };
+  }
+
+  // ---- equipment ----
+  equipFromBag(i) {
+    const s = this.inv.slots[i], slot = s && ITEMS[s.k].equip?.slot; if (!slot) return false;
+    this.inv.slots[i] = this.eq[slot] || null; this.eq[slot] = s; this.done.wear = true;
+    this.st = sumStats(this.eq); this.ui.changed(); return true;
+  }
+  unequip(slot, toIndex) {
+    const s = this.eq[slot]; if (!s) return false;
+    let i = toIndex;
+    if (i === undefined || this.inv.slots[i]) {
+      const other = i !== undefined ? this.inv.slots[i] : null;
+      if (other && ITEMS[other.k].equip?.slot === slot) { this.inv.slots[i] = s; this.eq[slot] = other; this.st = sumStats(this.eq); this.ui.changed(); return true; }
+      i = this.inv.slots.indexOf(null);
+    }
+    if (i < 0) { this.ui.toast('Çanta dolu'); return false; }
+    this.inv.slots[i] = s; delete this.eq[slot];
+    this.st = sumStats(this.eq); this.ui.changed(); return true;
+  }
+  /** Damage dealt to the player (future hostile animals). Armor reduces it. */
+  hurt(n) {
+    const dmg = n * Math.max(.25, 1 - this.st.armor * .15);
+    this.S.hp = Math.max(0, this.S.hp - dmg); this.ui.vibrate(60);
+    for (const k of ['shield', 'body']) { const s = this.eq[k]; if (s && s.d !== undefined && --s.d <= 0) { delete this.eq[k]; this.st = sumStats(this.eq); this.ui.toast(`${ITEMS[s.k].n} parçalandı`); } }
+    return dmg;
+  }
   canStand(x, y) {
     const W = this.W, r = this.P.r * .75;
     if (!W.landAt(x - r, y - r) || !W.landAt(x + r, y - r) || !W.landAt(x - r, y + r) || !W.landAt(x + r, y + r)) return false;
@@ -98,7 +132,8 @@ export class Game {
     const im = Math.hypot(ix, iy);
     if (this.fishing && im > .25) this.fishing = null;
     const a = Math.min(1, dt * 12);
-    P.vx += (ix * SPEED - P.vx) * a; P.vy += (iy * SPEED - P.vy) * a;
+    const spd = SPEED * (1 + this.st.speed);
+    P.vx += (ix * spd - P.vx) * a; P.vy += (iy * spd - P.vy) * a;
     const sp = Math.hypot(P.vx, P.vy); P.moving = sp > 14;
     if (im > .15) { P.fx = ix / im; P.fy = iy / im; }
     if (P.moving) P.walk += dt * sp * .09;
@@ -113,14 +148,14 @@ export class Game {
 
     // survival
     S.hunger = Math.max(0, S.hunger - dt * RATE.hunger * (S.sick > 0 ? RATE.sickHungerMul : 1));
-    S.thirst = Math.max(0, S.thirst - dt * RATE.thirst);
+    S.thirst = Math.max(0, S.thirst - dt * RATE.thirst * (1 + this.st.thirst));
     if (S.sick > 0) { S.sick = Math.max(0, S.sick - dt); if (S.sick === 0) this.ui.toast('Kendini daha iyi hissediyorsun'); }
     const cold = this.darkness() > .4 && !this.warmAt(P.x, P.y);
     if (cold && !S.coldWarned) { S.coldWarned = true; this.ui.toast(W.ents.some(e => e.k === 'fire') ? 'Gece soğuk. Ateşin yanına git!' : 'Gece soğuk. Kamp ateşi yak!'); }
     let dh = 0;
     if (S.hunger <= 0) dh -= RATE.starve;
     if (S.thirst <= 0) dh -= RATE.dehydrate;
-    if (cold) dh -= RATE.cold;
+    if (cold) dh -= RATE.cold * (1 - Math.min(.9, this.st.warm));
     if (S.sick > 0) dh -= RATE.sick;
     if (dh === 0 && S.hunger > 35 && S.thirst > 35) dh = RATE.regen;
     S.hp = clamp(S.hp + dh * dt, 0, 100);
@@ -136,12 +171,10 @@ export class Game {
     this.updateArrows(dt);
     this.updateFishing(dt);
 
-    this.grabT = this.findGrab();
-    this.useT = this.findUse();
-    inp.useCd -= dt; inp.grabCd -= dt;
-    if (inp.use && inp.useCd <= 0) { const r = this.doUse(); inp.useCd = .3; if (r === 'once') inp.use = false; }
-    if (inp.grab && inp.grabCd <= 0) { const r = this.doGrab(); inp.grabCd = .25; if (r === 'once') inp.grab = false; }
-    P.swing = Math.max(0, P.swing - dt);
+    this.action = this.findAction();
+    inp.actCd -= dt;
+    if (inp.act && inp.actCd <= 0) { const r = this.doAction(); inp.actCd = .3; if (r === 'once') inp.act = false; }
+    P.swing = Math.max(0, P.swing - dt); if (P.usedT > 0) P.usedT -= dt;
 
     this.stepFx(dt);
     const c = 1 - Math.exp(-dt * 7); this.cam.x += (P.x - this.cam.x) * c; this.cam.y += (P.y - this.cam.y) * c;
@@ -157,98 +190,91 @@ export class Game {
     this.stepFx(dt);
   }
 
-  // ================= targeting =================
-  // Two buttons, two targets:
-  //   El (grab)    → pick up drops, gather plants/sticks/pebbles/coconuts, drink at ponds, open chest / fire
-  //   Kullan (use) → whatever is in hand: hit trees/rocks with a tool, shoot, fish, eat, drink
+  // ================= the one smart action button =================
+  // findAction() looks around and picks what the button will do, choosing the right tool from the bag:
+  //   1. animal at arm's reach + a weapon        → Saldır   (weapon)
+  //   2. the nearest thing in reach               → Odun kes (axe) / Taş kır (pick) / Topla / Al / Aç / Ateş / Su iç
+  //   3. standing at the shore with a rod          → Balık tut (rod)
+  //   4. an animal in bow range with bow + arrows  → Ok at    (bow)
+  // A target that needs a missing tool is shown locked (and explains what to craft) only if nothing else is possible.
   scoreOf(o, reach) {
     const P = this.P, dist = Math.hypot(o.x - P.x, o.y - P.y), r = this.W.radius(o) || 4, dd = dist - r;
     if (dd > reach) return null;
     return dd - (dist > 0 ? ((o.x - P.x) * P.fx + (o.y - P.y) * P.fy) / dist : 1) * 6;
   }
-  findGrab() {
+  nearestAnimal(maxD) {
+    let ba = null, bd = maxD;
+    for (const a of this.W.animals) { if (!a.alive) continue; const d = Math.hypot(a.x - this.P.x, a.y - this.P.y); if (d < bd) { bd = d; ba = a; } }
+    return ba;
+  }
+  findAction() {
     const P = this.P, W = this.W;
-    let best = null, bs = 1e9;
+    if (this.fishing) return { type: 'fishing', tool: 'rod', x: this.fishing.bx, y: this.fishing.by, r: 0, lbl: this.fishing.bite ? 'Çek!' : 'Bekle…' };
+
+    const wpn = this.weapon(), close = wpn && this.nearestAnimal(44);
+    if (close) return { type: 'attack', a: close, tool: wpn.s.k, x: close.x, y: close.y, r: 10, lbl: 'Saldır' };
+
+    let best = null, bs = 1e9, locked = null, ls = 1e9;
     W.near(P.x, P.y, 48, o => {
-      if (o.cat === 'res' && (!o.alive || !RES[o.k].gather)) return;
-      const sc = this.scoreOf(o, o.cat === 'res' ? 22 : 24); if (sc === null || sc >= bs) return;
-      bs = sc;
-      best = o.cat === 'res' ? { type: 'res', o, x: o.x, y: o.y, r: RES[o.k].r, lbl: RES[o.k].label }
-                             : { type: 'ent', o, x: o.x, y: o.y, r: STRUCT[o.k].r || 6, lbl: STRUCT[o.k].label(o, this) };
+      if (o.cat === 'res' && !o.alive) return;
+      const sc = this.scoreOf(o, o.cat === 'res' ? 22 : 24); if (sc === null) return;
+      let t;
+      if (o.cat === 'ent') t = { type: 'ent', o, lbl: STRUCT[o.k].label(o, this), r: STRUCT[o.k].r || 6 };
+      else {
+        const d = RES[o.k];
+        if (d.gather) t = { type: 'gather', o, lbl: d.label, r: d.r };
+        else {
+          const ti = this.inv.toolFor(d.mat);
+          t = ti >= 0 ? { type: 'hit', o, tool: this.inv.slots[ti].k, slot: ti, dmg: ITEMS[this.inv.slots[ti].k].dmg[d.mat], lbl: d.label, r: d.r }
+                      : { type: 'hit', o, locked: true, lbl: d.label, msg: d.hint, r: d.r };
+        }
+      }
+      t.x = o.x; t.y = o.y;
+      if (t.locked) { if (sc < ls) { ls = sc; locked = t; } }
+      else if (sc < bs) { bs = sc; best = t; }
     });
     if (best) return best;
     for (const [dx, dy] of DIRS8) {
       const px = P.x + dx * 22, py = P.y + dy * 22;
-      if (W.tileAt(px, py) === TILE.POND) return { type: 'pond', x: px, y: py, r: 12, lbl: 'İç' };
+      if (W.tileAt(px, py) === TILE.POND) return { type: 'pond', x: px, y: py, r: 12, lbl: 'Su iç' };
     }
-    return null;
-  }
-  findUse() {
-    const P = this.P, W = this.W, h = this.held(), it = h && ITEMS[h.k];
-    if (this.fishing) return { type: 'fishing', x: this.fishing.bx, y: this.fishing.by, r: 0, lbl: this.fishing.bite ? 'Çek!' : 'Bekle…' };
-    if (it?.food) return { type: 'eat', lbl: 'Ye' };
-    if (it?.canteen) return h.d > 0 ? { type: 'drink', lbl: 'İç' } : { type: 'none', locked: true, lbl: 'Boş', msg: 'Matara boş. Gölde doldur' };
-    if (it?.use === 'shoot') {
-      let ba = null, bd = 210;
-      for (const a of W.animals) { if (!a.alive) continue; const d = Math.hypot(a.x - P.x, a.y - P.y); if (d < bd) { bd = d; ba = a; } }
-      const ok = this.inv.count('arrow') > 0;
-      if (ba) return { type: 'animal', a: ba, x: ba.x, y: ba.y, r: 10, locked: !ok, lbl: ok ? 'Ok at' : 'Ok yok', msg: 'Ok yok. Üret → Ok' };
-      return { type: 'none', locked: true, lbl: 'Ok at', msg: 'Menzilde hayvan yok' };
+    if (this.inv.has('rod')) for (const [dx, dy] of [[P.fx, P.fy], ...DIRS8]) {
+      const px = P.x + dx * 30, py = P.y + dy * 30;
+      if (!isSeaTile(W.tileAt(px, py))) continue;
+      let bx = P.x + dx * 58, by = P.y + dy * 58;
+      if (!isSeaTile(W.tileAt(bx, by))) { bx = px; by = py; }
+      return { type: 'sea', tool: 'rod', bx, by, x: bx, y: by, r: 10, lbl: 'Balık tut' };
     }
-    if (it?.use === 'fish') {
-      for (const [dx, dy] of [[P.fx, P.fy], ...DIRS8]) {
-        const px = P.x + dx * 30, py = P.y + dy * 30;
-        if (!isSeaTile(W.tileAt(px, py))) continue;
-        let bx = P.x + dx * 58, by = P.y + dy * 58;
-        if (!isSeaTile(W.tileAt(bx, by))) { bx = px; by = py; }
-        return { type: 'sea', bx, by, x: bx, y: by, r: 10, lbl: 'Balık tut' };
+    if (this.inv.has('bow')) {
+      const a = this.nearestAnimal(210);
+      if (a) {
+        const ok = this.inv.count('arrow') > 0;
+        if (ok || !locked) return { type: 'shoot', a, tool: 'bow', x: a.x, y: a.y, r: 10, locked: !ok, lbl: 'Ok at', msg: 'Ok kalmadı. Üret → Ok' };
       }
-      return { type: 'none', locked: true, lbl: 'Balık tut', msg: 'Balık tutmak için kıyıya git' };
     }
-    // weapon: an animal at arm's reach
-    if (it?.melee) {
-      let ba = null, bd = 44;
-      for (const a of W.animals) { if (!a.alive) continue; const d = Math.hypot(a.x - P.x, a.y - P.y); if (d < bd) { bd = d; ba = a; } }
-      if (ba) return { type: 'attack', a: ba, x: ba.x, y: ba.y, r: 10, lbl: 'Saldır' };
-    }
-    // tools: the closest tree/rock; locked if the held item can't damage its material
-    let best = null, bs = 1e9;
-    W.near(P.x, P.y, 48, o => {
-      if (o.cat !== 'res' || !o.alive || !RES[o.k].mat) return;
-      const sc = this.scoreOf(o, 22); if (sc === null || sc >= bs) return;
-      bs = sc; best = o;
-    });
-    if (!best) return null;
-    const d = RES[best.k], dmg = it?.dmg?.[d.mat] || 0;
-    return { type: 'hit', o: best, x: best.x, y: best.y, r: d.r, dmg, locked: !dmg, lbl: dmg ? d.label : 'Alet seç', msg: d.hint };
+    return locked;
   }
 
-  // ================= actions =================
-  doGrab() {
-    const t = this.grabT; if (!t) return;
-    this.face(t.x, t.y); this.ui.vibrate(10);
-    switch (t.type) {
-      case 'res': return this.gather(t.o);
-      case 'ent': return STRUCT[t.o.k].interact(t.o, this);
-      case 'pond': return this.drinkPond(t);
-    }
-  }
-  doUse() {
-    const t = this.useT; if (!t) return;
+  doAction() {
+    const t = this.action; if (!t) return;
     if (t.locked) {
-      if (this.clock - this.S.lockMsg > 1.4) { this.S.lockMsg = this.clock; this.ui.toast(t.msg || 'Elindeki ile olmaz'); }
+      if (this.clock - this.S.lockMsg > 1.4) { this.S.lockMsg = this.clock; this.ui.toast(t.msg || 'Bunun için bir alet lazım'); }
       return;
     }
     if (t.x !== undefined) this.face(t.x, t.y);
-    this.P.swing = .22; this.ui.vibrate(12);
+    this.P.swing = .22; this.P.used = t.tool || null; this.P.usedT = .5; this.ui.vibrate(12);
     switch (t.type) {
-      case 'hit': return this.hit(t.o, t.dmg);
-      case 'eat': this.eatSlot(this.hand); return 'once';
-      case 'drink': this.drinkSlot(this.hand); return 'once';
+      case 'gather': this.gather(t.o); return;
+      case 'hit': return this.hit(t.o, t.slot, t.dmg);
+      case 'ent': return STRUCT[t.o.k].interact(t.o, this);
+      case 'pond': return this.drinkPond(t);
       case 'sea': return this.castLine(t);
       case 'fishing': return this.reel();
-      case 'animal': return this.shoot(t.a);
-      case 'attack': this.wear(this.held().k, this.hand); return this.damage(t.a, ITEMS[this.held()?.k]?.melee || 1);
+      case 'shoot': return this.shoot(t.a);
+      case 'attack': {
+        const w = this.weapon(); if (!w) return;
+        this.wearStack(w); return this.damage(t.a, ITEMS[w.s.k].melee || 1);
+      }
     }
   }
 
@@ -259,10 +285,10 @@ export class Game {
     o.hit = .2; this.burst(o.x, o.y - (d.fxY || 4), d.fx, 6);
     this.harvestDone(o);
   }
-  hit(o, dmg) {
+  hit(o, slot, dmg) {
     const d = RES[o.k];
     o.hit = .2; this.burst(o.x, o.y - (d.fxY || 4), d.fx);
-    this.wear(this.held().k, this.hand);
+    this.wear(this.inv.slots[slot].k, slot);
     o.hp -= dmg;
     if (o.hp <= 0) this.harvestDone(o);
   }
@@ -273,6 +299,12 @@ export class Game {
     this.W.scheduleRegrow(o, d.regrow * DAY);
   }
 
+  /** Wear the weapon returned by weapon() (equipped or in the bag). */
+  wearStack(w) {
+    if (w.slot !== 'eq') return this.wear(w.s.k, w.slot);
+    if (--w.s.d <= 0) { delete this.eq.weapon; this.st = sumStats(this.eq); this.ui.toast(`${ITEMS[w.s.k].n} kırıldı!`); this.ui.vibrate(60); }
+    this.ui.changed();
+  }
   wear(k, slot) {
     const r = this.inv.wear(k, slot);
     if (r === 'broke') { this.ui.toast(`${ITEMS[k].n} kırıldı!`); this.ui.vibrate(60); }
@@ -357,12 +389,12 @@ export class Game {
       if (f.wait <= 0) { f.bite = true; f.biteT = 1.1; this.ui.vibrate(50); this.floatText(f.bx, f.by - 12, '!', '#ffffff'); }
     } else {
       f.biteT -= dt;
-      if (f.biteT <= 0) { this.fishing = null; this.ui.toast('Balık kaçtı'); this.wear('rod', this.hand); }
+      if (f.biteT <= 0) { this.fishing = null; this.ui.toast('Balık kaçtı'); this.wear('rod'); }
     }
   }
   reel() {
     const f = this.fishing; this.fishing = null;
-    if (f && f.bite) { this.give('fish', 1); this.done.fish = true; this.wear('rod', this.hand); this.burst(f.bx, f.by, ['#bfe8ff', '#8fb4c8'], 10); }
+    if (f && f.bite) { this.give('fish', 1); this.done.fish = true; this.wear('rod'); this.burst(f.bx, f.by, ['#bfe8ff', '#8fb4c8'], 10); }
     return 'once';
   }
 
@@ -372,7 +404,7 @@ export class Game {
     const d = Math.hypot(a.x - ox, a.y - 4 - oy), tt = d / sp;
     const tx = a.x + a.vx * tt, ty = a.y - 4 + a.vy * tt, m = Math.hypot(tx - ox, ty - oy) || 1;
     this.W.arrows.push({ x: ox, y: oy, vx: (tx - ox) / m * sp, vy: (ty - oy) / m * sp, dist: 0, max: Math.min(280, d + 70) });
-    this.inv.remove('arrow', 1); this.wear('bow', this.hand); this.ui.changed();
+    this.inv.remove('arrow', 1); this.wear('bow'); this.ui.changed();
   }
   updateArrows(dt) {
     const W = this.W;

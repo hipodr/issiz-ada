@@ -23,40 +23,39 @@
     <span class="tag" id="sickTag" hidden>Hasta</span>
   </div>
   <div class="side">
-    <div class="card clock"><span id="dayLbl">1. gün</span><small id="todLbl">Sabah</small></div>
+    <div class="toprow">
+      <div class="card clock"><span id="dayLbl">1. gün</span><small id="todLbl">Sabah</small></div>
+      <button id="bagBtn" class="card" type="button" aria-label="Sırt çantası">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6V4.5a3 3 0 0 1 6 0V6"/><path d="M5 11a5 5 0 0 1 5-5h4a5 5 0 0 1 5 5v8a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2z"/><path d="M5 12.5h14"/><rect x="9" y="14.5" width="6" height="3.5" rx="1"/><path d="M3.5 13v4M20.5 13v4"/></svg><span class="badge" id="bagCount">0</span>
+      </button>
+    </div>
     <div class="card goal"><b>Hedef</b><span id="goalLbl"></span></div>
   </div>
 </div>
 
 <div id="joy" hidden><div id="knob"></div></div>
 <div id="hint">Ekranda parmağını sürükle: yürü</div>
-<div id="dock">
-  <div class="smallbtns">
-    <button id="bagBtn" class="card" type="button" aria-label="Sırt çantası">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9a6 6 0 0 1 12 0v10a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2z"/><path d="M9 5V4a3 3 0 0 1 6 0v1"/><path d="M8 14h8v4H8z"/></svg>Çanta<span class="badge" id="bagCount">0</span>
-    </button>
-    <button id="craftBtn" class="card" type="button" aria-label="Üret">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4l6 6-3 3-6-6z"/><path d="M11 7L3 15l3 3 8-8"/></svg>Üret
-    </button>
-  </div>
-  <div id="hotbar" class="card" aria-label="Hızlı erişim"></div>
-</div>
 <div id="controls">
-  <button id="grabBtn" type="button" aria-label="El"><span class="ico"><svg viewBox="0 0 24 24"><path d="M8 13V6.5a1.5 1.5 0 0 1 3 0V12M11 11.5V5a1.5 1.5 0 0 1 3 0v6.5M14 11.5V6.5a1.5 1.5 0 0 1 3 0V14c0 4-2.5 7-6.5 7-2.5 0-4-1.2-5.2-3l-2.3-3.6a1.4 1.4 0 0 1 2.2-1.8L8 15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span id="grabLbl">—</span></button>
-  <button id="useBtn" type="button" aria-label="Kullan"><span id="useIco"></span><span id="useLbl">—</span></button>
+  <button id="actBtn" type="button" aria-label="Eylem"><span id="actIco"></span><span id="actLbl">Keşfet</span></button>
 </div>
 <div id="toast" class="card"></div>
 <div id="tip" class="card" hidden></div>
+<div id="ghost" hidden></div>
 
 <div id="scrim" hidden></div>
 <div id="bag" hidden role="dialog" aria-label="Sırt çantası">
-  <h2><span>Sırt çantası<span class="cap" id="bagCap"></span></span><button id="bagClose" type="button">Kapat</button></h2>
-  <div class="slots" id="bagSlots"></div>
-  <div id="bagDetail"></div>
-</div>
-<div id="craft" hidden role="dialog" aria-label="Üretim">
-  <h2>Üretim <button id="craftClose" type="button">Kapat</button></h2>
-  <div id="recs" style="display:grid;gap:10px"></div>
+  <h2><span class="tabs"><button type="button" data-tab="inv">Çanta</button><button type="button" data-tab="craft">Üretim</button></span><button id="bagClose" type="button">Kapat</button></h2>
+  <div id="tabInv">
+    <div class="doll">
+      <div class="eqcol" id="eqLeft"></div>
+      <div class="figure"><div id="hero"></div><div class="statline" id="statLine"></div></div>
+      <div class="eqcol" id="eqRight"></div>
+    </div>
+    <div class="sec">Sırt çantası <span class="cap" id="bagCap"></span></div>
+    <div class="slots" id="bagSlots"></div>
+    <div id="bagDetail"></div>
+  </div>
+  <div id="tabCraft" hidden><div id="recs"></div></div>
 </div>
 <div id="fire" hidden role="dialog" aria-label="Kamp ateşi">
   <h2>Kamp ateşi <button id="fireClose" type="button">Kapat</button></h2>
@@ -77,10 +76,8 @@
   <p>Gemin battı, bir adaya düştün. Topla, üret, avlan, balık tut ve olabildiğince uzun hayatta kal.</p>
   <ul>
     <li><b>Yürümek</b>Ekranın herhangi bir yerinde parmağını sürükle</li>
-    <li><b>El tuşu</b>Al, topla, su iç, sandık ve ateşi aç</li>
-    <li><b>Kullan</b>Elindekini kullan: kes, kır, ok at, balık tut, ye</li>
-    <li><b>Alt çubuk</b>Elindeki eşyayı seç (çantanın üst satırı)</li>
-        <li><b>Üret</b>Aletler, ip, ok, ateş, sandık. Aletler kullandıkça eskir</li>
+    <li><b>Turuncu tuş</b>Yakındakine göre kendisi karar verir: odun kes, taş kır, topla, balık tut, saldır, ok at</li>
+    <li><b>Çanta</b>Sağ üstte. Ekipman, eşyalar ve Üretim. Sürükle-bırak ile tak</li>
   </ul>
   <div class="menuBest" id="menuBest"></div>
   <div class="row">

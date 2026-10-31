@@ -3,15 +3,23 @@
 //  place  structure id     → built on the ground in front of the player (see structures.js)
 //  cost   { itemId: count }
 //  d      one-line description
+//  cat    group heading in the craft tab (see CATS)
+export const CATS = ['Malzeme', 'Alet', 'Silah', 'Giysi', 'Yapı'];
+
 export const RECIPES = [
-  { id: 'rope',    out: ['rope', 1],    cost: { fiber: 3 },                     d: 'Liflerden örülür.' },
-  { id: 'axe',     out: ['axe', 1],     cost: { wood: 3, stone: 2 },            d: 'Ağaç keser. 40 kullanım.' },
-  { id: 'pick',    out: ['pick', 1],    cost: { wood: 3, stone: 3 },            d: 'Kaya kırar. 40 kullanım.' },
-  { id: 'fire',    place: 'fire',       cost: { wood: 4, stone: 3 },            d: 'Isıtır, aydınlatır, yemek pişirir.' },
-  { id: 'rod',     out: ['rod', 1],     cost: { wood: 2, rope: 2 },             d: 'Kıyıda balık tut. 25 kullanım.' },
-  { id: 'bow',     out: ['bow', 1],     cost: { wood: 3, rope: 2 },             d: 'Tavşan avla. 30 atış.' },
-  { id: 'arrow',   out: ['arrow', 4],   cost: { wood: 1, stone: 1, fiber: 1 },  d: '4 ok yapar.' },
-  { id: 'club',    out: ['club', 1],    cost: { wood: 1 },                      d: 'Saldırı silahı. Yakındaki hayvana vurur. 25 kullanım.' },
-  { id: 'canteen', out: ['canteen', 1], cost: { shell: 1, rope: 1 },            d: 'Gölden doldur, 3 yudum su taşı.' },
-  { id: 'chest',   place: 'chest',      cost: { wood: 10, rope: 2 },            d: '16 slotluk depo, yere kurulur.' },
+  { id: 'rope',     cat: 'Malzeme', out: ['rope', 1],     cost: { fiber: 3 },                          d: 'Liflerden örülür.' },
+  { id: 'arrow',    cat: 'Malzeme', out: ['arrow', 4],    cost: { wood: 1, stone: 1, fiber: 1 },       d: '4 ok yapar.' },
+  { id: 'axe',      cat: 'Alet',    out: ['axe', 1],      cost: { wood: 3, stone: 2 },                 d: 'Ağaç keser. 40 kullanım.' },
+  { id: 'pick',     cat: 'Alet',    out: ['pick', 1],     cost: { wood: 3, stone: 3 },                 d: 'Kaya kırar. 40 kullanım.' },
+  { id: 'rod',      cat: 'Alet',    out: ['rod', 1],      cost: { wood: 2, rope: 2 },                  d: 'Kıyıda balık tut. 25 kullanım.' },
+  { id: 'canteen',  cat: 'Alet',    out: ['canteen', 1],  cost: { shell: 1, rope: 1 },                 d: 'Gölden doldur, 3 yudum su taşı.' },
+  { id: 'club',     cat: 'Silah',   out: ['club', 1],     cost: { wood: 1 },                           d: 'Saldırı 1. 25 kullanım.' },
+  { id: 'spear',    cat: 'Silah',   out: ['spear', 1],    cost: { wood: 2, stone: 2, rope: 1 },        d: 'Saldırı 2. 40 kullanım.' },
+  { id: 'bow',      cat: 'Silah',   out: ['bow', 1],      cost: { wood: 3, rope: 2 },                  d: 'Uzaktaki hayvana ok atar. 30 atış.' },
+  { id: 'strawhat', cat: 'Giysi',   out: ['strawhat', 1], cost: { fiber: 6 },                          d: 'Susuzluk %15 daha yavaş.' },
+  { id: 'shoes',    cat: 'Giysi',   out: ['shoes', 1],    cost: { hide: 2, rope: 1 },                  d: '%15 daha hızlı yürü.' },
+  { id: 'vest',     cat: 'Giysi',   out: ['vest', 1],     cost: { hide: 4, rope: 2 },                  d: 'Gece soğuğu %60 az, zırh +1.' },
+  { id: 'shield',   cat: 'Giysi',   out: ['shield', 1],   cost: { wood: 5, rope: 2 },                  d: 'Zırh +2.' },
+  { id: 'fire',     cat: 'Yapı',    place: 'fire',        cost: { wood: 4, stone: 3 },                 d: 'Isıtır, aydınlatır, yemek pişirir.' },
+  { id: 'chest',    cat: 'Yapı',    place: 'chest',       cost: { wood: 10, rope: 2 },                 d: '16 slotluk depo.' },
 ];

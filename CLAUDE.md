@@ -27,15 +27,18 @@ js/main.js            boot, loop, menu/play/over state
 tools/smoke.mjs       headless test of the real game logic + one render pass
 ```
 
-## Controls (owner's design)
-- Hotbar = first 4 bag slots (`HOTBAR`); the selected one is the item in hand (`G.hand`). Tools go there first.
-- **El** button (grab) → `findGrab/doGrab`: drops, hand-gather resources (`gather: true`), pond, chest, fire screen.
-- **Kullan** button (use) → `findUse/doUse`: depends on the held item — tool `dmg[mat]` hits trees/rocks,
-  `melee` weapons (Sopa) hit animals, `use:'shoot'` bow, `use:'fish'` rod, food = eat, canteen = drink.
-- Sopa is a weapon only (no tree damage). Axe/pick are required for trees/rocks.
-- Campfire opens a sheet: add wood, put raw food on 3 cook slots (COOK_TIME), take it before it burns (BURN_TIME).
-  The fire sheet does not pause the game; bag/craft/chest do (`PAUSING` in ui.js).
-- Tapping a material/recipe icon shows a tooltip (item `d` + `src`).
+## Controls (owner's design — keep it this way)
+- ONE smart action button. `Game.findAction()` decides by context and picks the tool from the bag automatically:
+  animal at arm's reach + weapon → Saldır · nearest thing in reach → Odun kes (best `dmg.wood` tool) / Taş kır /
+  Topla / Al / Aç / Ateş / Su iç · shore + rod → Balık tut · animal in bow range → Ok at.
+  A target needing a missing tool shows locked and its `hint` toast says what to craft. The button shows the tool icon.
+- No hotbar, no tool selection. Equipment ("paper doll") lives in the bag sheet: slots in `data/equipment.js`
+  (head/body/feet/weapon/shield), item `equip: { slot, stats }`, totals in `G.st` (speed, armor, warm, thirst, melee).
+  Weapon used for attacks = equipped one, else strongest `melee` item in the bag.
+- Bag button is top-right; the bag sheet has tabs Çanta (doll + 16 slots + details) and Üretim (recipes grouped by `cat`).
+  Drag & drop: bag↔bag (swap/merge) and bag↔equipment. Tap = details (Ye / İç / Kuşan / Çıkar / Yere bırak).
+- Sopa/Mızrak are weapons only. Campfire opens its own sheet (wood, 3 timed cook slots, burning). Fire sheet doesn't pause.
+- `G.hurt(n)` applies armor; ready for hostile animals.
 
 ## Rules of the codebase
 - `game.js` never touches the DOM. It talks to the screen only via `this.ui` (toast, bump, changed, vibrate, openChest, over).
@@ -60,7 +63,8 @@ tools/smoke.mjs       headless test of the real game logic + one render pass
 ## Roadmap (agreed with the owner)
 1. ✅ Bag 16 slots × 20, tool durability, rope, chest
 2. ✅ Fishing (bite mini-game), bow + arrows + rabbits, timed cooking, raw-food sickness, canteen
-2b. ✅ Hotbar + El/Kullan buttons, Sopa weapon, fire screen, tooltips
+2b. ✅ Fire screen, tooltips
+2c. ✅ One smart button with auto-tool, equipment doll + stats + drag & drop, gear (hat, vest, shoes, shield, spear), fewer resources
 3. Shelter: prefab hut → upgradeable house; energy bar + sleep (skip night)
 4. Few dangerous animals (boar, `ai: 'hostile'`), weather (rain/storm puts out fires), farming, sounds, minimap
 Goal is endless survival with a day record (no escape ending).

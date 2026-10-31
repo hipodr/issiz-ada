@@ -19,9 +19,9 @@ const { SAND, GRASS, FOREST } = TILE;
 
 export const RES = {
   tree: {
-    r: 10, block: true, hp: 9, mat: 'wood', yields: [['wood', 3]], regrow: 2,
-    label: 'Kes', hint: 'Ağaç kesmek için elinde balta olmalı',
-    spawn: { [FOREST]: .24, [GRASS]: .05 }, min: 0, fx: ['#7a5532', '#3f7d36', '#5a9a44'], fxY: 14,
+    r: 7, block: true, hp: 9, mat: 'wood', yields: [['wood', 3]], regrow: 2,
+    label: 'Odun kes', hint: 'Ağaç kesmek için balta lazım (Üret)',
+    spawn: { [FOREST]: .13, [GRASS]: .03 }, min: 0, fx: ['#7a5532', '#3f7d36', '#5a9a44'], fxY: 14,
     draw(ctx, o) {
       const s = .9 + o.v * .28, w = o.hit > 0 ? Math.sin(o.hit * 70) * 2.2 : 0;
       if (!o.alive) { shadow(ctx, o.x, o.y + 2, 8, 3.5); circle(ctx, o.x, o.y, 6, '#6b4a2b'); circle(ctx, o.x, o.y - 1, 4.2, '#b88a5a'); return; }
@@ -55,8 +55,8 @@ export const RES = {
 
   rock: {
     r: 11, block: true, hp: 9, mat: 'stone', yields: [['stone', 3]], regrow: 3,
-    label: 'Kır', hint: 'Kaya kırmak için elinde kazma olmalı',
-    spawn: { [GRASS]: .03, [SAND]: .025 }, min: 70, fx: ['#9a9c97', '#c9cbc5', '#6f716c'], fxY: 4,
+    label: 'Taş kır', hint: 'Kaya kırmak için kazma lazım (Üret)',
+    spawn: { [GRASS]: .02, [SAND]: .02 }, min: 60, fx: ['#9a9c97', '#c9cbc5', '#6f716c'], fxY: 4,
     draw(ctx, o) {
       if (!o.alive) return;
       const s = .85 + o.v * .3, wob = o.hit > 0 ? Math.sin(o.hit * 80) * 1.5 : 0, x = o.x + wob, y = o.y - 3;
@@ -75,7 +75,7 @@ export const RES = {
 
   bush: {
     r: 6, block: false, keep: true, hp: 1, gather: true, yields: [['berry', 2]], regrow: 1,
-    label: 'Topla', spawn: { [FOREST]: .05, [GRASS]: .05 }, min: 70, fx: ['#d93a4c', '#4a9443'], fxY: 6,
+    label: 'Topla', spawn: { [FOREST]: .035, [GRASS]: .03 }, min: 60, fx: ['#d93a4c', '#4a9443'], fxY: 6,
     draw(ctx, o) {
       const s = .9 + o.v * .25, w = o.hit > 0 ? Math.sin(o.hit * 70) * 1.5 : 0, x = o.x + w, y = o.y - 5;
       shadow(ctx, o.x, o.y + 3, 11 * s, 4 * s);
@@ -86,7 +86,7 @@ export const RES = {
 
   grass: {
     r: 5, block: false, keep: true, hp: 1, gather: true, yields: [['fiber', 1]], regrow: .8,
-    label: 'Topla', spawn: { [FOREST]: .05, [GRASS]: .08 }, min: 110, fx: ['#9ccc5a', '#c6e48a'], fxY: 6,
+    label: 'Topla', spawn: { [FOREST]: .035, [GRASS]: .05 }, min: 80, fx: ['#9ccc5a', '#c6e48a'], fxY: 6,
     draw(ctx, o, t) {
       const x = o.x, y = o.y + 2;
       if (!o.alive) { ctx.fillStyle = '#7fa54a'; for (let i = -2; i <= 2; i++) ctx.fillRect(x + i * 3, y - 3, 1.5, 3); return; }

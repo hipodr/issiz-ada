@@ -4,6 +4,7 @@ import { SAVE_KEY, SAVE_VERSION, BEST_KEY } from './config.js';
 
 const MIGRATIONS = {
   3: d => ({ ...d, v: 4, hand: 0 }),   // v4: hotbar hand index; fires get cook slots via STRUCT.fire.fix
+  4: d => { const { hand, ...r } = d; return { ...r, v: 5, eq: {} }; },   // v5: no hotbar, equipment slots
 };
 
 const store = {

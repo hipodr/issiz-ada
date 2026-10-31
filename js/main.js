@@ -11,14 +11,13 @@ let state = 'menu';
 const ui = new UI({ onOver: () => gameOver() });
 const renderer = new Renderer($('cv'));
 const input = new Input({
-  canvas: $('cv'), joy: $('joy'), knob: $('knob'), useBtn: $('useBtn'), grabBtn: $('grabBtn'),
+  canvas: $('cv'), joy: $('joy'), knob: $('knob'), actBtn: $('actBtn'),
   canMove: () => state === 'play' && !ui.sheet,
   onFirstMove: () => { $('hint').hidden = true; },
   onKey: k => {
     if (state !== 'play') return false;
-    if (k === 'b' || k === 'c') { const n = k === 'b' ? 'bag' : 'craft'; ui.sheet === n ? ui.close() : ui.open(n); return true; }
+    if (k === 'b' || k === 'c') { const tab = k === 'b' ? 'inv' : 'craft'; ui.sheet === 'bag' && ui.tab === tab ? ui.close() : ui.open('bag', false, tab); return true; }
     if (k === 'escape') { ui.close(); return true; }
-    if (k >= '1' && k <= '4') { G.setHand(+k - 1); return true; }
     return false;
   },
 });
@@ -28,7 +27,7 @@ let G = new Game(ui);
 G.newGame(20261031);           // menu backdrop island
 ui.attach(G);
 
-function showHud(on) { for (const id of ['hud', 'controls', 'dock']) $(id).hidden = !on; $('hint').hidden = !on; }
+function showHud(on) { for (const id of ['hud', 'controls']) $(id).hidden = !on; $('hint').hidden = !on; }
 function start(game) {
   G = game; G.best = getBest(); ui.attach(G);
   state = 'play'; $('menu').hidden = true; $('end').hidden = true; showHud(true);
