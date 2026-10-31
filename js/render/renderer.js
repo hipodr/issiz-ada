@@ -259,20 +259,24 @@ export class Renderer {
     const X = v => P.x + v * dir, Y = v => P.y + v;                       // local → world (mirrored when facing left)
     const limb = (ax, ay, bx, by, w, c) => { ctx.strokeStyle = c; ctx.lineWidth = w; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(X(ax), Y(ay)); ctx.lineTo(X(bx), Y(by)); ctx.stroke(); };
     const blob = (lx, ly, rx, ry, c) => { ctx.fillStyle = c; ctx.beginPath(); ctx.ellipse(X(lx), Y(ly), rx, ry, 0, 0, Math.PI * 2); ctx.fill(); };
+    const K = 1.3;                                                        // hero scale (bigger than the old blob so limbs read on a phone)
+    ctx.save(); ctx.translate(P.x, P.y + 7); ctx.scale(K, K); ctx.translate(-P.x, -P.y - 7);
     shadow(ctx, P.x, P.y + 7, 7.5, 2.8);
+    const OUT = 'rgba(45,25,15,.55)';
 
     // ---- legs ----
     const foot = (fx, fy, far) => {
       if (eq.feet) blob(fx + (side ? .8 : 0), fy + .4, side ? 2.6 : 2, 1.5, far ? '#5a3c24' : '#6e4a2c');
       else blob(fx + (side ? .6 : 0), fy + .4, side ? 2 : 1.6, 1.2, far ? SKIN_D : SKIN);
     };
+    const leg = (ax, ay, bx, by, w, c) => { limb(ax, ay, bx, by, w + 1, OUT); limb(ax, ay, bx, by, w, c); };
     if (side) {
       const fa = [-s * 3.4, 6.4 - Math.max(0, -s) * 1.2], na = [s * 3.4, 6.4 - Math.max(0, s) * 1.2];
-      limb(0, -1 + bob, fa[0], fa[1] - 1.4, 3.4, PANTS_D); foot(fa[0], fa[1], true);
-      limb(0, -1 + bob, na[0], na[1] - 1.4, 3.6, PANTS); foot(na[0], na[1], false);
+      leg(0, -1 + bob, fa[0], fa[1] - 1.4, 3.4, PANTS_D); foot(fa[0], fa[1], true);
+      leg(0, -1 + bob, na[0], na[1] - 1.4, 3.6, PANTS); foot(na[0], na[1], false);
     } else {
       const l = 6.4 - Math.max(0, s) * 1.8, r = 6.4 - Math.max(0, -s) * 1.8;
-      limb(-2.3, -1 + bob, -2.5, l - 1.4, 3.6, PANTS); limb(2.3, -1 + bob, 2.5, r - 1.4, 3.6, PANTS_D);
+      leg(-2.3, -1 + bob, -2.5, l - 1.4, 3.6, PANTS); leg(2.3, -1 + bob, 2.5, r - 1.4, 3.6, PANTS_D);
       // rolled-up cuffs
       limb(-2.5, l - 2.2, -2.5, l - 1.6, 3.9, '#7d8fa8'); limb(2.5, r - 2.2, 2.5, r - 1.6, 3.9, '#6b7d96');
       foot(-2.5, l, false); foot(2.5, r, true);
@@ -309,10 +313,12 @@ export class Renderer {
     };
     // arm: shoulder → elbow → hand, sleeve on the upper half
     const arm = (sx, sy, hx, hy, far) => {
-      const mx = (sx + hx) / 2 + (side ? -.6 : 0), my = (sy + hy) / 2;
-      limb(mx, my, hx, hy, 2.3, far ? SKIN_D : SKIN);
-      limb(sx, sy, mx, my, 3.1, far ? SHIRT_D : SHIRT);
-      blob(hx, hy, 1.5, 1.5, far ? SKIN_D : SKIN);
+      const ex = (sx + hx) / 2 + (side ? -.8 : sx > 0 ? .9 : sx < 0 ? -.9 : 0), ey = (sy + hy) / 2;   // elbow bends outward
+      const cx = sx + (ex - sx) * .55, cy = sy + (ey - sy) * .55;          // short sleeve ends here
+      limb(sx, sy, ex, ey, 4, OUT); limb(ex, ey, hx, hy, 3.3, OUT); blob(hx, hy, 2.2, 2.2, OUT);   // outline
+      limb(cx, cy, ex, ey, 2.5, far ? SKIN_D : SKIN); limb(ex, ey, hx, hy, 2.3, far ? SKIN_D : SKIN);
+      limb(sx, sy, cx, cy, 3, far ? SHIRT_D : SHIRT_L);
+      blob(hx, hy, 1.7, 1.7, far ? SKIN_D : SKIN);
     };
     const holdArm = tool ? toLocal(handW) : null;
     const shY = -10.5 + bob;
@@ -324,7 +330,7 @@ export class Renderer {
       ctx.fillStyle = g; ctx.beginPath();
       ctx.moveTo(X(-w), Y(top + .8)); ctx.quadraticCurveTo(X(-w - .8), Y(top + 6), X(-hw), Y(hip));
       ctx.lineTo(X(hw), Y(hip)); ctx.quadraticCurveTo(X(w + .8), Y(top + 6), X(w), Y(top + .8));
-      ctx.quadraticCurveTo(X(0), Y(top - 1), X(-w), Y(top + .8)); ctx.fill();
+      ctx.quadraticCurveTo(X(0), Y(top - 1), X(-w), Y(top + .8)); ctx.closePath(); ctx.strokeStyle = OUT; ctx.lineWidth = 1; ctx.stroke(); ctx.fill();
       // ragged hem
       ctx.fillStyle = SHIRT_D; for (let i = -hw; i < hw - .5; i += 2) { ctx.beginPath(); ctx.moveTo(X(i), Y(hip)); ctx.lineTo(X(i + 1), Y(hip + 1.1 + (i * 7 % 3) * .2)); ctx.lineTo(X(i + 2), Y(hip)); ctx.fill(); }
       // belt / rope
@@ -345,7 +351,7 @@ export class Renderer {
       const hy = -17.2 + bob;
       limb(0, -13 + bob, 0, -12 + bob, 2.8, SKIN_D);                       // neck
       const g = ctx.createRadialGradient(X(-1.5), Y(hy - 1.5), .5, X(0), Y(hy), 5.6); g.addColorStop(0, SKIN); g.addColorStop(1, SKIN_D);
-      ctx.fillStyle = g; ctx.beginPath(); ctx.ellipse(X(side ? .3 : 0), Y(hy), side ? 4.6 : 4.8, 5.2, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = g; ctx.beginPath(); ctx.ellipse(X(side ? .3 : 0), Y(hy), side ? 4.6 : 4.8, 5.2, 0, 0, Math.PI * 2); ctx.strokeStyle = OUT; ctx.lineWidth = 1; ctx.stroke(); ctx.fill();
       ctx.fillStyle = HAIR;
       if (back) {
         ctx.beginPath(); ctx.ellipse(X(0), Y(hy - .4), 5.1, 5.1, 0, 0, Math.PI * 2); ctx.fill();
@@ -388,21 +394,22 @@ export class Renderer {
 
     // ---- assemble back to front ----
     if (side) {
-      const far = [-s * 3.2 - .5, -3.2 + bob], near = holdArm || [s * 3.2 + .5, -3.2 + bob];
+      const far = [-s * 4 - .5, -2.8 + bob], near = holdArm || [s * 4 + .8, -2.8 + bob];
       arm(-.6, shY, far[0], far[1], true);
       if (eq.shield) shield();
       torso(); head();
       arm(.4, shY, near[0], near[1], false); drawTool();
     } else if (back) {
       drawTool();
-      const l = holdArm && P.fx * dir <= 0 ? holdArm : [-6, -3 + s * 1.2 + bob], r = holdArm && P.fx * dir > 0 ? holdArm : [6, -3 - s * 1.2 + bob];
-      arm(-5.2, shY, l[0], l[1], false); arm(5.2, shY, r[0], r[1], true);
+      const l = holdArm && P.fx * dir <= 0 ? holdArm : [-7.2, -2.6 + s * 1.4 + bob], r = holdArm && P.fx * dir > 0 ? holdArm : [7.2, -2.6 - s * 1.4 + bob];
+      arm(-5.6, shY, l[0], l[1], false); arm(5.6, shY, r[0], r[1], true);
       torso(); head(); shield();
     } else {
-      const r = holdArm || [6, -3 - s * 1.2 + bob], l = [-6, -3 + s * 1.2 + bob];
+      const r = holdArm || [7.2, -2.6 - s * 1.4 + bob], l = [-7.2, -2.6 + s * 1.4 + bob];
       torso();
-      arm(-5.2, shY, l[0], l[1], false); arm(5.2, shY, r[0], r[1], true);
+      arm(-5.6, shY, l[0], l[1], false); arm(5.6, shY, r[0], r[1], true);
       shield(); head(); drawTool();
     }
+    ctx.restore();
   }
 }

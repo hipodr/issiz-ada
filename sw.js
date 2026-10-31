@@ -1,6 +1,6 @@
 // App shell: network-first (updates show up immediately).
 // CDN libraries + model weights: cache-first (works offline after the first successful run).
-const CACHE = "ada-v4";
+const CACHE = "ada-v5";
 const SHELL = ["./", "./index.html", "./manifest.webmanifest", "./icon-192.png", "./icon-512.png", "./css/style.css", "./js/main.js"];
 
 self.addEventListener("install", e => {
@@ -23,7 +23,7 @@ self.addEventListener("fetch", e => {
 
   if (url.origin === location.origin) {
     e.respondWith(
-      fetch(req)
+      fetch(req, { cache: "no-cache" })          // revalidate: never serve a stale module from the HTTP cache
         .then(res => { const copy = res.clone(); caches.open(CACHE).then(c => c.put(req, copy)); return res; })
         .catch(() => caches.match(req).then(m => m || caches.match("./index.html")))
     );
