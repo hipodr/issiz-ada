@@ -74,6 +74,23 @@ export const STRUCT = {
     },
   },
 
+  wreck: {
+    n: 'Enkaz sandığı', r: 11,
+    init(e) { e.loot = e.loot || []; },
+    label: () => 'Aç',
+    interact(e, G) { G.openWreck(e); return 'once'; },
+    draw(ctx, e, t) {
+      const { x, y } = e, b = Math.sin(t * 2 + x) * .6;
+      shadow(ctx, x, y + 3, 14, 5);
+      ctx.save(); ctx.translate(x, y + b); ctx.rotate(-.12);
+      ctx.fillStyle = '#7a5634'; ctx.fillRect(-12, -14, 24, 15);
+      ctx.fillStyle = '#5e3f24'; ctx.fillRect(-12, -9, 24, 1.6); ctx.fillRect(-12, -4, 24, 1.6); ctx.fillRect(-4, -14, 2, 15); ctx.fillRect(5, -14, 2, 15);
+      ctx.strokeStyle = '#3f8f3a'; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.moveTo(-12, -2); ctx.quadraticCurveTo(-6, -6, -2, -1); ctx.moveTo(4, 0); ctx.quadraticCurveTo(8, -5, 12, -2); ctx.stroke();
+      ctx.restore();
+      ctx.fillStyle = 'rgba(255,224,138,' + (.5 + Math.sin(t * 4) * .3).toFixed(2) + ')'; ctx.fillRect(x - 1, y - 30, 2, 8); ctx.fillRect(x - 1, y - 20, 2, 2);
+    },
+  },
+
   chest: {
     n: 'Sandık', r: 11,
     init(e) { e.slots = Array(CHEST_SLOTS).fill(null); },

@@ -31,8 +31,8 @@ export class Renderer {
     const { ctx, VW, VH, dpr, zoom } = this, W = G.W, cam = G.cam, tm = G.clock;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.fillStyle = WATER[DEEP][3]; ctx.fillRect(0, 0, this.cv.width, this.cv.height);
-    const z = zoom * dpr;
-    ctx.setTransform(z, 0, 0, z, Math.round((VW / 2 - cam.x * zoom) * dpr), Math.round((VH / 2 - cam.y * zoom) * dpr));
+    const z = zoom * dpr, sh = G.shake > 0 ? G.shake * 18 : 0, sx = (Math.random() - .5) * sh, sy = (Math.random() - .5) * sh;
+    ctx.setTransform(z, 0, 0, z, Math.round((VW / 2 - cam.x * zoom + sx) * dpr), Math.round((VH / 2 - cam.y * zoom + sy) * dpr));
     const hw = VW / 2 / zoom, hh = VH / 2 / zoom;
     const x0 = Math.floor((cam.x - hw) / T) - 1, x1 = Math.floor((cam.x + hw) / T) + 1;
     const y0 = Math.floor((cam.y - hh) / T) - 1, y1 = Math.floor((cam.y + hh) / T) + 2;
@@ -60,6 +60,31 @@ export class Renderer {
       const t = W.tiles[y * MAP + x]; if (t < SAND || t === POND) continue;
       ctx.fillRect(x * T + hash2(x, y, 7) * 28, y * T + hash2(x, y, 8) * 28, 3, 2);
       ctx.fillRect(x * T + hash2(x, y, 9) * 28, y * T + hash2(x, y, 10) * 28, 2, 2);
+    }
+
+    // cliffs & ramps (plateaus): south rock face hangs over the lower tile, side edges get a dark line
+    const CH = 13;
+    for (let y = cy0; y <= cy1; y++) for (let x = cx0; x <= cx1; x++) {
+      const i = y * MAP + x;
+      if (W.ramp[i]) {
+        ctx.fillStyle = 'rgba(70,45,20,.35)';
+        for (let k = 1; k < 4; k++) ctx.fillRect(x * T + 3, y * T + k * 8, T - 6, 2);
+        ctx.fillStyle = 'rgba(0,0,0,.18)'; ctx.fillRect(x * T, y * T, 2, T); ctx.fillRect(x * T + T - 2, y * T, 2, T);
+        continue;
+      }
+      const m = W.cliff[i]; if (!m) continue;
+      if (m & 1) {
+        const h = CH * (W.lvl[i] - W.lvl[i + MAP]), fy = (y + 1) * T;
+        ctx.fillStyle = '#7d6a55'; ctx.fillRect(x * T, fy, T + .6, h);
+        ctx.fillStyle = '#665443'; ctx.fillRect(x * T, fy + h * .55, T + .6, h * .45);
+        ctx.fillStyle = 'rgba(0,0,0,.22)'; ctx.fillRect(x * T, fy + h, T + .6, 4);
+        ctx.fillStyle = '#98846c'; ctx.fillRect(x * T, fy, T + .6, 2);
+        ctx.fillStyle = 'rgba(40,30,20,.35)'; ctx.fillRect(x * T + hash2(x, y, 3) * 24, fy + 3, 2, h - 5); ctx.fillRect(x * T + 4 + hash2(x, y, 4) * 20, fy + 5, 1.5, h - 7);
+      }
+      ctx.fillStyle = 'rgba(30,24,16,.45)';
+      if (m & 2) ctx.fillRect(x * T, y * T, 2.5, T + (m & 1 ? CH : 0));
+      if (m & 4) ctx.fillRect(x * T + T - 2.5, y * T, 2.5, T + (m & 1 ? CH : 0));
+      if (m & 8) { ctx.fillStyle = 'rgba(255,255,255,.18)'; ctx.fillRect(x * T, y * T, T, 2); }
     }
 
     // target rings: white = El (grab), orange = Kullan (use)
@@ -109,6 +134,27 @@ export class Renderer {
     ctx.globalAlpha = 1;
 
     this.drawLight(G, playing);
+    if (playing) this.drawMarkers(G);
+  }
+
+  // arrows at the screen edge pointing to off-screen shipwreck crates
+  drawMarkers(G) {
+    const { ctx, VW, VH, dpr, zoom } = this, cam = G.cam;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    for (const e of G.W.ents) {
+      if (e.k !== 'wreck') continue;
+      const sx = (e.x - cam.x) * zoom + VW / 2, sy = (e.y - cam.y) * zoom + VH / 2;
+      if (sx > 0 && sx < VW && sy > 0 && sy < VH) continue;
+      const dist = Math.hypot(e.x - G.P.x, e.y - G.P.y); if (dist > 2200) continue;
+      const ang = Math.atan2(sy - VH / 2, sx - VW / 2), m = 26;
+      const k = Math.min((VW / 2 - m) / Math.abs(Math.cos(ang) || 1e-6), (VH / 2 - m - 60) / Math.abs(Math.sin(ang) || 1e-6));
+      const ax = VW / 2 + Math.cos(ang) * k, ay = VH / 2 + Math.sin(ang) * k;
+      ctx.save(); ctx.translate(ax, ay); ctx.rotate(ang);
+      ctx.fillStyle = 'rgba(15,37,48,.8)'; ctx.beginPath(); ctx.arc(0, 0, 14, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#ffd27a'; ctx.beginPath(); ctx.moveTo(10, 0); ctx.lineTo(2, -6); ctx.lineTo(2, 6); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#9a6436'; ctx.fillRect(-7, -4, 8, 8);
+      ctx.restore();
+    }
   }
 
   drawLight(G, playing) {
@@ -168,7 +214,7 @@ export class Renderer {
       }
     }
     const eq = G.eq || {};
-    circle(ctx, x, y - 5 + bob, 7, G.S.sick > 0 ? '#9bbf5a' : '#e86a3a');
+    circle(ctx, x, y - 5 + bob, 7, P.hurtT > 0 ? '#ff4d4d' : G.S.sick > 0 ? '#9bbf5a' : '#e86a3a');
     ctx.fillStyle = G.S.sick > 0 ? '#7da046' : '#c4532a'; ctx.fillRect(x - 7, y - 3 + bob, 14, 2);
     if (eq.body) { ctx.fillStyle = '#9a7a52'; ctx.fillRect(x - 7, y - 10 + bob, 4, 9); ctx.fillRect(x + 3, y - 10 + bob, 4, 9); }
     if (eq.feet) { ctx.fillStyle = '#7a5634'; ctx.fillRect(x - 5, y + 5 + step * .3, 5, 2.5); ctx.fillRect(x, y + 5 - step * .3, 5, 2.5); }

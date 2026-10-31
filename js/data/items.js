@@ -7,6 +7,7 @@
 //  canteen water capacity (sips). Stacks 1, keeps its fill level in slot.d
 //  dmg     { material: damage per hit } for tools that hit resources (see resources.js mat)
 //  melee   damage dealt to animals at arm's reach (weapons)
+//  heal    hp restored when used from the bag (bandages)
 //  equip   { slot: 'head'|'body'|'feet'|'weapon'|'shield', stats: {...} }  see equipment.js
 //  use     'shoot' | 'fish' for tools with a special Use action
 //  stack   override max per slot (default STACK)
@@ -21,6 +22,9 @@ export const ITEMS = {
   shell:   { n: 'Kabuk', c: '#7a4f2a', d: 'Matara yapılır', src: 'Kokos yiyince kalır' },
   arrow:   { n: 'Ok',    c: '#8a5a32', d: 'Yay ile atılır', src: 'Üret: odun + taş + lif' },
   hide:    { n: 'Post',  c: '#b99a72', d: 'Giysi ve ayakkabı için', src: 'Tavşan avla' },
+  cloth:   { n: 'Bez',   c: '#d8d2c2', d: 'Sargı bezi yapılır', src: 'Kıyıya vuran enkaz sandıkları' },
+  nail:    { n: 'Çivi',  c: '#9aa0a6', d: 'İleride ev yapımında kullanılacak', src: 'Kıyıya vuran enkaz sandıkları' },
+  bandage: { n: 'Sargı bezi', c: '#f2efe6', heal: 30, d: 'Yaraları sarar', src: 'Üret: 2 bez; enkaz sandıkları' },
   burnt:   { n: 'Yanık yemek', c: '#2b231e', food: { hu: 3 }, d: 'Ateşte unutulmuş', src: 'Pişen yemeği ateşte bırakırsan' },
 
   berry:   { n: 'Meyve',        c: '#d93a4c', food: { hu: 10, th: 3 }, src: 'Kırmızı meyveli çalılar' },

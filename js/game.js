@@ -10,6 +10,7 @@ import { RES } from './data/resources.js';
 import { STRUCT } from './data/structures.js';
 import { ANIMALS } from './data/animals.js';
 import { EQUIP_SLOTS, sumStats } from './data/equipment.js';
+import { rollLoot, WRECK_MAX } from './data/loot.js';
 
 const NOOP_UI = { toast() {}, bump() {}, changed() {}, vibrate() {}, openChest() {}, openFire() {}, over() {}, levelUp() {}, sleep() {} };
 
@@ -49,8 +50,9 @@ export class Game {
     this.done = {};
     this.fishing = null; this.action = null; this.parts = []; this.floats = []; this.dead = false;
     this.cam = { x: this.P.x, y: this.P.y };
-    this.animalTimer = 0;
+    this.animalTimer = 0; this.shake = 0;
     this.spawnAnimals(true);
+    this.spawnWrecks(1);
   }
 
   serialize() {
@@ -68,7 +70,9 @@ export class Game {
     const g = new Game(ui);
     g.newGame(d.seed);
     const W = g.W;
-    g.P.x = d.p[0]; g.P.y = d.p[1]; g.cam.x = g.P.x; g.cam.y = g.P.y;
+    g.P.x = d.p[0]; g.P.y = d.p[1];
+    if (!g.canStand(g.P.x, g.P.y, g.P.x, g.P.y)) [g.P.x, g.P.y] = g.nearestStand(g.P.x, g.P.y);
+    g.cam.x = g.P.x; g.cam.y = g.P.y;
     Object.assign(g.S, d.s);
     g.home = d.home ?? null; g.inv.slots = d.inv; g.eq = d.eq || {}; g.st = sumStats(g.eq); g.done = d.done || {};
     d.res.forEach((st, i) => { const o = W.res[i]; if (!o || !st) return; o.alive = 0; o.hp = st[0]; W.scheduleRegrow(o, Math.max(1, st[1])); });
@@ -126,7 +130,7 @@ export class Game {
     for (const e of this.W.ents) STRUCT[e.k].update?.(e, skip, this);
     this.W.tickRegrow(skip, this.P);
     this.ui.sleep(S.day);
-    this.addXp(XP.day);
+    this.onNewDay();
   }
   /** Back at the hut after dying: bag items stay where you fell. Returns false when there is no hut. */
   respawn() {
@@ -142,6 +146,40 @@ export class Game {
     this.ui.toast(lost ? 'Kulübende uyandın. Eşyaların düştüğün yerde' : 'Kulübende uyandın');
     this.ui.changed();
     return true;
+  }
+
+  // ---- each morning ----
+  onNewDay() {
+    this.addXp(XP.day);
+    const n = Math.random() < .4 ? 2 : 1;
+    if (this.spawnWrecks(n)) setTimeout(() => this.ui.toast('Kıyıya enkaz sandığı vurdu!'), 0);
+  }
+  /** Wash shipwreck crates onto random beach tiles next to the sea. Returns how many appeared. */
+  spawnWrecks(n) {
+    const W = this.W; let made = 0;
+    for (let tries = 0; tries < 3000 && made < n; tries++) {
+      if (W.ents.filter(e => e.k === 'wreck').length >= WRECK_MAX) break;
+      const x = Math.random() * MAP | 0, y = Math.random() * MAP | 0;
+      if (W.at(x, y) !== TILE.SAND) continue;
+      if (![[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => isSeaTile(W.at(x + dx, y + dy)))) continue;
+      const wx = (x + .5) * T, wy = (y + .5) * T;
+      if (W.blocked(wx, wy, 14)) continue;
+      W.addEnt('wreck', wx, wy, { loot: rollLoot() });
+      made++;
+    }
+    return made;
+  }
+  openWreck(e) {
+    for (const [k, n] of e.loot) this.give(k, n);
+    this.burst(e.x, e.y - 8, ['#7a5634', '#d8d2c2', '#ffe08a'], 16);
+    this.W.removeEnt(e); this.done.wreck = true;
+    this.addXp(XP.loot); this.ui.vibrate(30);
+  }
+  healSlot(i) {
+    const s = this.inv.slots[i], h = s && ITEMS[s.k].heal; if (!h) return;
+    if (this.S.hp >= 100) { this.ui.toast('Sağlığın zaten tam'); return; }
+    this.inv.takeOne(i); this.S.hp = Math.min(100, this.S.hp + h);
+    this.floatText(this.P.x, this.P.y - 30, `+${h} Sağlık`, '#8fd16a'); this.ui.changed();
   }
 
   // ---- equipment ----
@@ -163,16 +201,30 @@ export class Game {
     this.st = sumStats(this.eq); this.ui.changed(); return true;
   }
   /** Damage dealt to the player (future hostile animals). Armor reduces it. */
-  hurt(n) {
+  hurt(n, fromX, fromY) {
     const dmg = n * Math.max(.25, 1 - this.st.armor * .15);
-    this.S.hp = Math.max(0, this.S.hp - dmg); this.ui.vibrate(60);
+    this.S.hp = Math.max(0, this.S.hp - dmg); this.ui.vibrate(80);
+    this.shake = .35; this.P.hurtT = .4; this.fishing = null;
+    this.floatText(this.P.x, this.P.y - 34, `-${Math.round(dmg)}`, '#ff7b7b');
+    if (fromX !== undefined) { const dx = this.P.x - fromX, dy = this.P.y - fromY, d = Math.hypot(dx, dy) || 1; this.P.kbx = dx / d * 260; this.P.kby = dy / d * 260; this.P.kbt = .18; }
     for (const k of ['shield', 'body']) { const s = this.eq[k]; if (s && s.d !== undefined && --s.d <= 0) { delete this.eq[k]; this.st = sumStats(this.eq); this.ui.toast(`${ITEMS[s.k].n} parçalandı`); } }
     return dmg;
   }
-  canStand(x, y) {
+  /** Can the player stand at (x,y), coming from (fx,fy)? Land only, no solid objects, no climbing cliffs except on ramps. */
+  canStand(x, y, fx = this.P.x, fy = this.P.y) {
     const W = this.W, r = this.P.r * .75;
-    if (!W.landAt(x - r, y - r) || !W.landAt(x + r, y - r) || !W.landAt(x - r, y + r) || !W.landAt(x + r, y + r)) return false;
+    for (const [cx, cy] of [[x - r, y - r], [x + r, y - r], [x - r, y + r], [x + r, y + r]]) {
+      if (!W.landAt(cx, cy) || !W.canStep(fx, fy, cx, cy)) return false;
+    }
     return !W.blocked(x, y, this.P.r);
+  }
+  /** Nearest spot where the player can stand (used after loading old saves). */
+  nearestStand(x, y) {
+    for (let r = 0; r < 400; r += 16) for (let a = 0; a < 16; a++) {
+      const px = x + Math.cos(a / 16 * Math.PI * 2) * r, py = y + Math.sin(a / 16 * Math.PI * 2) * r;
+      if (this.canStand(px, py, px, py)) return [px, py];
+    }
+    return [(this.W.spawn[0] + .5) * T, (this.W.spawn[1] + .5) * T];
   }
   goal() {
     const m = MILESTONES.find(m => !this.done[m.id]);
@@ -191,6 +243,9 @@ export class Game {
     const a = Math.min(1, dt * 12);
     const spd = SPEED * (1 + this.st.speed);
     P.vx += (ix * spd - P.vx) * a; P.vy += (iy * spd - P.vy) * a;
+    if (P.kbt > 0) { P.kbt -= dt; P.vx = P.kbx; P.vy = P.kby; }
+    if (P.hurtT > 0) P.hurtT -= dt;
+    if (this.shake > 0) this.shake = Math.max(0, this.shake - dt);
     const sp = Math.hypot(P.vx, P.vy); P.moving = sp > 14;
     if (im > .15) { P.fx = ix / im; P.fy = iy / im; }
     if (P.moving) P.walk += dt * sp * .09;
@@ -199,7 +254,7 @@ export class Game {
 
     // clock
     S.time += dt / DAY;
-    if (S.time >= 1) { S.time -= 1; S.day++; S.coldWarned = false; this.ui.toast(`${S.day}. gün başladı`); this.addXp(XP.day); }
+    if (S.time >= 1) { S.time -= 1; S.day++; S.coldWarned = false; this.ui.toast(`${S.day}. gün başladı`); this.onNewDay(); }
 
     for (const e of [...W.ents]) STRUCT[e.k].update?.(e, dt, this);
 
@@ -268,7 +323,7 @@ export class Game {
     const P = this.P, W = this.W;
     if (this.fishing) return { type: 'fishing', tool: 'rod', x: this.fishing.bx, y: this.fishing.by, r: 0, lbl: this.fishing.bite ? 'Çek!' : 'Bekle…' };
 
-    const wpn = this.weapon(), close = wpn && this.nearestAnimal(44);
+    const wpn = this.weapon(), close = wpn && this.nearestAnimal(50);
     if (close) return { type: 'attack', a: close, tool: wpn.s.k, x: close.x, y: close.y, r: 10, lbl: 'Saldır' };
 
     let best = null, bs = 1e9, locked = null, ls = 1e9;
@@ -477,27 +532,58 @@ export class Game {
   damage(a, n) {
     a.hp = (a.hp ?? ANIMALS[a.k].hp) - n; a.hurt = .25;
     this.burst(a.x, a.y - 6, ['#d9707a', '#ffffff'], 5);
+    if (ANIMALS[a.k].ai === 'hostile' && a.hp > 0) { a.st = 'stagger'; a.t = .45; a.vx = (a.x - this.P.x) * .8; a.vy = (a.y - this.P.y) * .8; }
     if (a.hp <= 0) this.kill(a);
   }
   kill(a) {
     a.alive = false;
     for (const [k, n] of ANIMALS[a.k].drops) this.dropItem(k, n, a.x, a.y);
     this.burst(a.x, a.y - 4, ['#d9707a', '#cdbda5'], 12);
-    this.done.hunt = true; this.addXp(XP.hunt); this.ui.toast(`${ANIMALS[a.k].n} avlandı! Eti yerden al`); this.ui.vibrate(40);
+    this.done.hunt = true; this.addXp(ANIMALS[a.k].xp || XP.hunt); this.ui.toast(`${ANIMALS[a.k].n} avlandı! Eti yerden al`); this.ui.vibrate(40);
   }
 
   // ---- animals ----
+  // wind up (shows "!") → straight charge → rest (vulnerable). Lit fires scare it off.
+  hostileAI(a, def, dt) {
+    const P = this.P, dx = P.x - a.x, dy = P.y - a.y, d = Math.hypot(dx, dy) || 1;
+    const scared = this.W.ents.some(e => e.k === 'fire' && e.fuel > 0 && Math.hypot(e.x - a.x, e.y - a.y) < 150);
+    const canSee = d < def.aggro && !scared && !this.dead && this.W.lvlAt(a.x, a.y) === this.W.lvlAt(P.x, P.y);
+    a.t -= dt;
+    switch (a.st) {
+      case 'wind':
+        a.vx = a.vy = 0; a.face = Math.sign(dx) || a.face;
+        if (a.t <= 0) { a.st = 'dash'; a.t = def.dash; a.vx = dx / d * def.chargeSpeed; a.vy = dy / d * def.chargeSpeed; a.hitDone = false; }
+        break;
+      case 'dash':
+        if (!a.hitDone && d < def.hitR + this.P.r) { a.hitDone = true; this.hurt(def.dmg, a.x, a.y); if (!this.warnedBoar) { this.warnedBoar = true; this.ui.toast(`${def.n} saldırdı! Silah ve kalkan işe yarar`); } }
+        if (a.t <= 0) { a.st = 'rest'; a.t = def.rest; a.vx = a.vy = 0; }
+        break;
+      case 'rest': case 'stagger':
+        a.vx *= .85; a.vy *= .85;
+        if (a.t <= 0) { a.st = canSee ? 'wind' : 'wander'; a.t = canSee ? def.windup : 1; }
+        break;
+      default:   // wander
+        if (scared && d < 220) { a.vx = -dx / d * def.speed * 2; a.vy = -dy / d * def.speed * 2; }
+        else if (canSee) { a.st = 'wind'; a.t = def.windup; a.vx = a.vy = 0; }
+        else if (a.t <= 0) {
+          a.t = 1.5 + Math.random() * 2.5;
+          if (Math.random() < .4) a.vx = a.vy = 0;
+          else { const ang = Math.random() * Math.PI * 2; a.vx = Math.cos(ang) * def.speed; a.vy = Math.sin(ang) * def.speed; }
+        }
+    }
+  }
   spawnAnimals(fill) {
     const W = this.W;
     W.animals = W.animals.filter(a => a.alive);
     for (const [k, def] of Object.entries(ANIMALS)) {
+      if ((def.minDay || 1) > this.S.day) continue;
       let have = W.animals.filter(a => a.k === k).length;
       for (let tries = 0; tries < 4000 && have < def.count; tries++) {
         const x = Math.random() * MAP | 0, y = Math.random() * MAP | 0;
         if (!def.tiles.includes(W.at(x, y))) continue;
         const wx = (x + .5) * T, wy = (y + .5) * T;
         if (Math.hypot(wx - this.P.x, wy - this.P.y) < (fill ? 200 : 420)) continue;
-        W.animals.push({ k, x: wx, y: wy, vx: 0, vy: 0, t: Math.random() * 2, flee: 0, hop: 0, face: 1, alive: true, hp: def.hp, hurt: 0 });
+        W.animals.push({ k, x: wx, y: wy, vx: 0, vy: 0, t: Math.random() * 2, flee: 0, hop: 0, face: 1, alive: true, hp: def.hp, hurt: 0, st: 'wander' });
         have++;
         if (!fill) break;
       }
@@ -509,7 +595,8 @@ export class Game {
       if (!a.alive) continue;
       const def = ANIMALS[a.k];
       if (a.hurt > 0) a.hurt -= dt;
-      if (def.ai === 'flee') {
+      if (def.ai === 'hostile') this.hostileAI(a, def, dt);
+      else if (def.ai === 'flee') {
         const dx = a.x - P.x, dy = a.y - P.y, d = Math.hypot(dx, dy) || 1;
         if (d < def.fleeDist) { a.flee = 1.3; a.vx = dx / d * def.fleeSpeed; a.vy = dy / d * def.fleeSpeed; }
         else if (a.flee > 0) a.flee -= dt;
@@ -520,8 +607,8 @@ export class Game {
         }
       }
       const nx = a.x + a.vx * dt, ny = a.y + a.vy * dt;
-      if (W.landAt(nx, a.y)) a.x = nx; else a.vx *= -1;
-      if (W.landAt(a.x, ny)) a.y = ny; else a.vy *= -1;
+      if (W.landAt(nx, a.y) && W.canStep(a.x, a.y, nx, a.y)) a.x = nx; else a.vx *= -1;
+      if (W.landAt(a.x, ny) && W.canStep(a.x, a.y, a.x, ny)) a.y = ny; else a.vy *= -1;
       if (Math.hypot(a.vx, a.vy) > 5) a.hop += dt * 11; else a.hop = 0;
       if (Math.abs(a.vx) > 2) a.face = Math.sign(a.vx);
     }
@@ -557,6 +644,8 @@ export class Game {
     for (const [dx, dy] of cands) {
       const x = P.x + dx, y = P.y + dy;
       if (!W.landAt(x, y) || !W.landAt(x - rad, y) || !W.landAt(x + rad, y)) continue;
+      const L = W.lvlAt(P.x, P.y);
+      if ([[x, y], [x - rad, y], [x + rad, y], [x, y - rad], [x, y + rad]].some(([a, b]) => W.lvlAt(a, b) !== L || W.rampAt(a, b))) continue;
       if ((x - P.x) ** 2 + (y - P.y) ** 2 < (rad + P.r + 1) ** 2) continue;
       let clear = true;
       W.near(x, y, 40, o => { if (W.solid(o) && Math.hypot(o.x - x, o.y - y) < W.radius(o) + rad + 4) clear = false; });

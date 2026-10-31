@@ -43,6 +43,13 @@ tools/smoke.mjs       headless test of the real game logic + one render pass
 - XP: amounts in `config.js XP`, curve `levelOf(xp)` in game.js (XP_STEP × level). `G.addXp(n)` → `ui.levelUp(lvl, unlockedNames)`.
 - Hut (`structures.js hut`, lvl 3): Uyu at evening/night skips to morning (`G.sleep`); the hut is `G.home`.
   Dying with a home → `G.respawn()` at the hut, bag dropped where you fell (equipment kept). No home → game over.
+- Elevation: `W.lvl` (0..2 plateaus) + `W.ramp`; movement only via `W.canStep(from,to)` (same level, or ±1 through a ramp).
+  Generated in `World.genElevation`; renderer draws `W.cliff` masks (south rock faces, side edges) and ramps as stairs.
+  Plateaus have extra rocks. Build spots must be one level and not on a ramp.
+- Boar (`animals.js`, `ai: 'hostile'`, from day 2): winds up ("!"), charges, `G.hurt(dmg, x, y)` (armor, knockback, shake),
+  rests (vulnerable), staggers when hit, avoids lit fires (150 units). XP per kill from `def.xp`.
+- Shipwreck crates (`structures.js wreck`, loot in `data/loot.js`): 1 at start, 1–2 each morning (`G.onNewDay`), max 3,
+  edge-of-screen arrows point to them. Loot adds cloth, nails (future house upgrade), bandages (`heal`).
 
 ## Rules of the codebase
 - `game.js` never touches the DOM. It talks to the screen only via `this.ui` (toast, bump, changed, vibrate, openChest, over).
@@ -70,5 +77,6 @@ tools/smoke.mjs       headless test of the real game logic + one render pass
 2b. ✅ Fire screen, tooltips
 2c. ✅ One smart button with auto-tool, equipment doll + stats + drag & drop, gear (hat, vest, shoes, shield, spear), fewer resources
 3. ✅ Hut + sleep + respawn, XP/levels with recipe gating, separate craft sheet. Next: hut → house upgrade (`e.lvl`), energy bar
-4. NEXT: few dangerous animals (boar, `ai: 'hostile'`, uses G.hurt), shipwreck crates washing ashore each morning, weather (rain/storm puts out fires), farming, sounds, minimap
+4. ✅ Plateaus/cliffs/ramps, boars, shipwreck crates, bandage.
+5. NEXT ideas: hut → house upgrade with nails (`e.lvl`), iron/ore on plateaus, energy bar, weather (rain/storm puts out fires), farming, sounds, minimap
 Goal is endless survival with a day record (no escape ending).

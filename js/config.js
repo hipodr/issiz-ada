@@ -12,7 +12,7 @@ export const COOK_TIME = 10;      // seconds to cook one item
 export const BURN_TIME = 30;      // seconds a cooked item can wait before it burns
 
 export const SAVE_KEY = 'issizada.save';
-export const SAVE_VERSION = 6;    // bump when the save shape changes; add a migration in save.js
+export const SAVE_VERSION = 7;    // bump when the save shape changes; add a migration in save.js
 export const BEST_KEY = 'issizada.best';
 
 export const TILE = Object.freeze({ DEEP: 0, SHAL: 1, SAND: 2, GRASS: 3, FOREST: 4, POND: 5 });
@@ -42,4 +42,5 @@ export const XP = Object.freeze({
   cook: 3,        // cooked food taken off the fire
   craftPerLvl: 4, // crafting gives this × recipe level
   day: 15,        // every new morning you survive
+  loot: 6,        // opening a shipwreck crate
 });

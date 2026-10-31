@@ -169,13 +169,73 @@ ok(G.inv.used() === 0 && W.ents.filter(e => e.k === 'drop').length >= bagItems, 
 for (const e of W.ents.filter(e => e.k === 'drop')) G.pickupDrop(e);
 ok(G.inv.used() === bagItems, 'got everything back');
 
+// ---------- elevation: plateaus, cliffs, ramps ----------
+{
+  const M = 128; let l1 = 0, l2 = 0, ramps = 0;
+  for (let i = 0; i < M * M; i++) { if (W.lvl[i] === 1) l1++; if (W.lvl[i] === 2) l2++; if (W.ramp[i]) ramps++; }
+  ok(l1 > 100 && l2 > 10 && ramps > 0, `plateaus exist (L1 ${l1}, L2 ${l2}, ramps ${ramps})`);
+  ok(W.lvl[W.spawn[1] * M + W.spawn[0]] === 0, 'spawn is on ground level');
+  let cliffT = null, rampT = null;
+  for (let y = 2; y < M - 2 && !(cliffT && rampT); y++) for (let x = 2; x < M - 2; x++) {
+    const i = y * M + x, b = i + M;
+    if (!cliffT && W.lvl[i] === 1 && !W.ramp[i] && W.lvl[b] === 0 && W.at(x, y + 1) === TILE.GRASS && !W.ramp[i - 1] && !W.ramp[i + 1]) cliffT = [x, y];
+    if (!rampT && W.ramp[i] && W.lvl[b] === W.lvl[i] - 1) rampT = [x, y];
+  }
+  const G6 = new Game(ui); G6.newGame(12345);
+  const below = ([x, y]) => [(x + .5) * T, (y + 1.5) * T], inside = ([x, y]) => [(x + .5) * T, (y + .5) * T];
+  const [bx, by] = below(cliffT), [ix, iy] = inside(cliffT);
+  ok(!G6.W.canStep(bx, by, ix, iy), 'cannot climb a cliff');
+  const [rbx, rby] = below(rampT), [rix, riy] = inside(rampT);
+  ok(G6.W.canStep(rbx, rby, rix, riy), 'can walk up a ramp');
+  ok(G6.W.res.every(o => !G6.W.ramp[Math.floor(o.y / T) * M + Math.floor(o.x / T)]), 'no resources block ramps');
+}
+
+// ---------- hostile boar ----------
+{
+  const G7 = new Game(ui); G7.newGame(4242); const W7 = G7.W; G7.animalTimer = 1e9;
+  ok(!W7.animals.some(a => a.k === 'boar'), 'no boars on day 1');
+  W7.animals = [{ k: 'boar', x: G7.P.x + 70, y: G7.P.y, vx: 0, vy: 0, t: 0, flee: 0, hop: 0, face: -1, alive: true, hp: 6, hurt: 0, st: 'wander' }];
+  if (!G7.canStand(W7.animals[0].x, W7.animals[0].y)) W7.animals[0].x = G7.P.x - 70;
+  const boar = W7.animals[0], hp0 = G7.S.hp; log.length = 0;
+  G7.updateAnimals(1 / 60); ok(boar.st === 'wind', 'boar winds up when the player is near');
+  for (let i = 0; i < 120 && G7.S.hp === hp0; i++) G7.updateAnimals(1 / 60);
+  ok(G7.S.hp < hp0 && log.some(m => m.includes('saldırdı')), `boar charge hurts (−${(hp0 - G7.S.hp).toFixed(1)})`);
+  const plain = hp0 - G7.S.hp;
+  G7.S.hp = 100; G7.inv.add('hide', 4); G7.inv.add('rope', 4); G7.inv.add('wood', 5); G7.S.xp = 1e4; G7.craft('vest'); G7.craft('shield');
+  G7.equipFromBag(G7.inv.slots.findIndex(s => s?.k === 'vest')); G7.equipFromBag(G7.inv.slots.findIndex(s => s?.k === 'shield'));
+  const armored = G7.hurt(14); ok(armored < plain, `armor 3 reduces the hit (${plain.toFixed(1)} → ${armored.toFixed(1)})`);
+  G7.inv.add('wood', 2); G7.inv.add('stone', 2); G7.inv.add('rope', 1); G7.craft('spear'); G7.equipFromBag(G7.inv.slots.findIndex(s => s?.k === 'spear'));
+  boar.x = G7.P.x + 30; boar.y = G7.P.y; boar.st = 'rest'; boar.t = 5; let hits = 0;
+  while (boar.alive && hits < 10) { boar.x = G7.P.x + 30; boar.y = G7.P.y; look(G7); if (G7.action?.type === 'attack') { G7.doAction(); hits++; } else break; }
+  ok(!boar.alive && hits === 3, `spear kills the boar in ${hits} hits`);
+  ok(G7.W.ents.some(e => e.k === 'drop' && e.item === 'meat' && e.n === 3), 'boar drops 3 meat');
+  const scared = { k: 'boar', x: G7.P.x + 60, y: G7.P.y, vx: 0, vy: 0, t: 0, alive: true, hp: 6, st: 'wander' };
+  G7.W.animals = [scared]; G7.W.addEnt('fire', G7.P.x + 40, G7.P.y + 30); G7.updateAnimals(1 / 60);
+  ok(scared.st === 'wander', 'boars keep away from a lit fire');
+}
+
+// ---------- shipwreck crates & bandage ----------
+{
+  const G8 = new Game(ui); G8.newGame(777); const W8 = G8.W;
+  const w1 = W8.ents.filter(e => e.k === 'wreck');
+  ok(w1.length === 1 && W8.at(w1[0].x / T | 0, w1[0].y / T | 0) === TILE.SAND && w1[0].loot.length === 3, 'a crate washes ashore on day 1');
+  G8.onNewDay(); ok(W8.ents.filter(e => e.k === 'wreck').length >= 2, 'more crates each morning');
+  for (let i = 0; i < 5; i++) G8.onNewDay(); ok(W8.ents.filter(e => e.k === 'wreck').length <= 3, 'at most 3 unopened crates');
+  const crate = W8.ents.find(e => e.k === 'wreck'), loot = crate.loot.reduce((a, [, n]) => a + n, 0), xp0 = G8.S.xp;
+  G8.openWreck(crate);
+  const got = G8.inv.slots.reduce((a, s) => a + (s ? s.n : 0), 0) + W8.ents.filter(e => e.k === 'drop').reduce((a, e) => a + e.n, 0);
+  ok(!W8.ents.includes(crate) && got >= loot && G8.S.xp > xp0, 'opening a crate gives its loot and XP');
+  G8.inv.add('cloth', 2); G8.S.xp = 1e4; ok(G8.craft('bandage'), 'craft bandage from cloth');
+  G8.S.hp = 50; G8.healSlot(G8.inv.slots.findIndex(s => s?.k === 'bandage')); ok(G8.S.hp === 80, 'bandage heals 30');
+}
+
 // ---------- save / load / migrate ----------
 const d = JSON.parse(JSON.stringify(G.serialize()));
 const G3 = Game.fromSave(d, ui);
 ok(G3.inv.count('cfish') === G.inv.count('cfish') && G3.eq.body?.k === 'vest' && G3.st.warm === .6 && !G3.W.res[W.res.indexOf(tree)].alive, 'save/load keeps bag, equipment, stats, felled tree');
 ok(G3.S.xp === G.S.xp && G3.home === G.home, 'save/load keeps XP and home');
 const v4 = { ...d, v: 4, hand: 2, s: { ...d.s, xp: undefined } }; delete v4.eq; delete v4.home; const m = migrate(v4);
-ok(m && m.v === 6 && !('hand' in m) && m.s.xp > 0 && Game.fromSave(m, ui).eq, 'v4 save migrates to v6 with estimated XP');
+ok(m && m.v === 7 && !('hand' in m) && m.s.xp > 0 && m.res.length === 0 && Game.fromSave(m, ui).eq, 'v4 save migrates to v7 (XP estimated, resources reset)');
 
 // ---------- long run: day/night, starvation → death ----------
 const G4 = new Game(ui); G4.newGame(99); log.length = 0;

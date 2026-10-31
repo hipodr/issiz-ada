@@ -9,6 +9,7 @@ export const CATS = ['Malzeme', 'Alet', 'Silah', 'Giysi', 'Yapı'];
 
 export const RECIPES = [
   { id: 'rope',     lvl: 2, cat: 'Malzeme', out: ['rope', 1],     cost: { fiber: 3 },                          d: 'Liflerden örülür.' },
+  { id: 'bandage',  lvl: 2, cat: 'Malzeme', out: ['bandage', 1],  cost: { cloth: 2 },                         d: 'Kullanınca +30 sağlık.' },
   { id: 'arrow',    lvl: 4, cat: 'Malzeme', out: ['arrow', 4],    cost: { wood: 1, stone: 1, fiber: 1 },       d: '4 ok yapar.' },
   { id: 'axe',      lvl: 1, cat: 'Alet',    out: ['axe', 1],      cost: { wood: 3, stone: 2 },                 d: 'Ağaç keser. 40 kullanım.' },
   { id: 'pick',     lvl: 1, cat: 'Alet',    out: ['pick', 1],     cost: { wood: 3, stone: 3 },                 d: 'Kaya kırar. 40 kullanım.' },

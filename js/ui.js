@@ -83,6 +83,7 @@ export class UI {
     for (const [s, v] of Object.entries(it.equip?.stats || {})) lines.push(`${STATS[s].n} ${STATS[s].fmt(v)}`);
     if (it.equip) lines.push(`Takılır: ${EQUIP_SLOTS.find(e => e.id === it.equip.slot).n}`);
     if (it.tool) lines.push(`${it.tool} kullanımda kırılır`);
+    if (it.heal) lines.push(`+${it.heal} sağlık`);
     return `<div class="th">${ico(k)}<b>${it.n}</b></div>${lines.map(l => `<p>${l}</p>`).join('')}${it.src ? `<p class="src">Nereden: ${it.src}</p>` : ''}`;
   }
   showTip(k, el) {
@@ -168,6 +169,7 @@ export class UI {
     const i = this.sel.i;
     if (it.food) add('Ye', () => { G.eatSlot(i); if (!G.inv.slots[i]) this.sel = null; }, true);
     if (it.canteen && s.d > 0) add('İç', () => G.drinkSlot(i), true);
+    if (it.heal) add('Kullan', () => { G.healSlot(i); if (!G.inv.slots[i]) this.sel = null; }, true);
     if (it.equip) add('Kuşan', () => { G.equipFromBag(i); this.sel = { src: 'eq', i: it.equip.slot }; }, true);
     add('Yere bırak', () => { G.dropSlot(i); this.sel = null; });
   }
