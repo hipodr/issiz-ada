@@ -1,7 +1,7 @@
 // App shell: network-first (updates show up immediately).
 // CDN libraries + model weights: cache-first (works offline after the first successful run).
-const CACHE = "ada-v1";
-const SHELL = ["./", "./index.html", "./manifest.webmanifest", "./icon-192.png", "./icon-512.png"];
+const CACHE = "ada-v2";
+const SHELL = ["./", "./index.html", "./manifest.webmanifest", "./icon-192.png", "./icon-512.png", "./css/style.css", "./js/main.js"];
 
 self.addEventListener("install", e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)));

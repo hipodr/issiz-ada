@@ -1,0 +1,25 @@
+// Inline SVG icons (24x24 viewBox) for items, recipes and structures.
+// To add an icon: add a key with the inner SVG markup. Keys match item / recipe ids.
+export const ICON = {
+  wood: '<rect x="2.5" y="8" width="18" height="9" rx="4.5" fill="#9a6436"/><rect x="5" y="10" width="9" height="1.4" rx=".7" fill="#7a4c26"/><ellipse cx="18" cy="12.5" rx="3.2" ry="4.5" fill="#dcae72"/><ellipse cx="18" cy="12.5" rx="1.4" ry="2" fill="#b07d45"/>',
+  stone: '<path d="M3.5 16.5l3-7.5 6.5-3 6 4 1.5 6.5-5.5 3H8z" fill="#8f928d"/><path d="M6.5 9l6.5-3 6 4-5.5 1.2z" fill="#c4c7c1"/><path d="M8 19.5l6-.2 5.5-3-1-1.5-5 2.2z" fill="#6f726d"/>',
+  fiber: '<path d="M8 21C8 14 6.5 8.5 4 4M12 21c0-7 .2-12 1.3-17M16 21c0-6 2-11 5-15" stroke="#9ccc5a" stroke-width="2.3" fill="none" stroke-linecap="round"/>',
+  rope: '<circle cx="11" cy="11" r="7" fill="none" stroke="#c7a46a" stroke-width="3"/><circle cx="11" cy="11" r="3" fill="none" stroke="#a8844c" stroke-width="2.4"/><path d="M16 16l5 5" stroke="#c7a46a" stroke-width="3" stroke-linecap="round"/>',
+  shell: '<path d="M3.5 11h17a8.5 8.5 0 0 1-17 0z" fill="#7a4f2a"/><path d="M5 11h14" stroke="#efe3cf" stroke-width="2.6" stroke-linecap="round"/><path d="M7 15c2 2 8 2 10 0" stroke="#9a6a3c" stroke-width="1.2" fill="none"/>',
+  arrow: '<path d="M4.5 19.5L18 6" stroke="#8a5a32" stroke-width="2" stroke-linecap="round"/><path d="M15 3.5l6-.5-.5 6z" fill="#b7bcc2"/><path d="M4.5 19.5l.8-4.2M4.5 19.5l4.2-.8M6.8 17.2l.8-4.2M6.8 17.2l4.2-.8" stroke="#e9e3d2" stroke-width="1.5" stroke-linecap="round"/>',
+  berry: '<path d="M12 7l2.2-3.5" stroke="#4a9443" stroke-width="2" stroke-linecap="round"/><circle cx="8.8" cy="14" r="4" fill="#d93a4c"/><circle cx="15.2" cy="15" r="4" fill="#c22f40"/><circle cx="12" cy="9.8" r="3.6" fill="#e8566a"/><circle cx="11" cy="8.8" r="1" fill="#ffd0d6"/>',
+  coconut: '<circle cx="12" cy="13" r="7.8" fill="#7a4f2a"/><path d="M6 10c2-3 7-4 10-2" stroke="#9a6a3c" stroke-width="1.4" fill="none"/><circle cx="10" cy="11" r="1.2" fill="#3a2414"/><circle cx="14" cy="11" r="1.2" fill="#3a2414"/><circle cx="12" cy="14.2" r="1.2" fill="#3a2414"/>',
+  fish: '<path d="M2.5 12c4-5.5 10.5-6.5 14.5-2l4-3v10l-4-3c-4 4.5-10.5 3.5-14.5-2z" fill="#8fb4c8"/><path d="M10 8.6c1.2 2.2 1.2 4.6 0 6.8" stroke="#6d93a8" stroke-width="1.3" fill="none"/><circle cx="6.5" cy="11" r="1.2" fill="#1d2b33"/>',
+  cfish: '<path d="M2.5 12c4-5.5 10.5-6.5 14.5-2l4-3v10l-4-3c-4 4.5-10.5 3.5-14.5-2z" fill="#c9853f"/><path d="M8 8.5l3 7M12 8l3 7" stroke="#7a4a1e" stroke-width="1.4"/><circle cx="6.5" cy="11" r="1.2" fill="#3a2414"/>',
+  meat: '<path d="M14 3.5c4 0 7 3 7 7s-4 6.5-7.5 5.2L9 20.2 6.3 17.5l4.5-4.5C9.6 9.5 10.5 3.5 14 3.5z" fill="#d9707a"/><path d="M15 7c2 0 3.5 1.5 3.5 3.5" stroke="#f0a3aa" stroke-width="1.6" fill="none" stroke-linecap="round"/><circle cx="5.6" cy="19.6" r="2.2" fill="#f2ead8"/><circle cx="4" cy="18" r="1.7" fill="#f2ead8"/>',
+  cmeat: '<path d="M14 3.5c4 0 7 3 7 7s-4 6.5-7.5 5.2L9 20.2 6.3 17.5l4.5-4.5C9.6 9.5 10.5 3.5 14 3.5z" fill="#a8582c"/><path d="M15 7c2 0 3.5 1.5 3.5 3.5" stroke="#d08a52" stroke-width="1.6" fill="none" stroke-linecap="round"/><circle cx="5.6" cy="19.6" r="2.2" fill="#f2ead8"/><circle cx="4" cy="18" r="1.7" fill="#f2ead8"/>',
+  axe: '<path d="M6 21.5L15.5 7" stroke="#8a5a32" stroke-width="2.6" stroke-linecap="round"/><path d="M12 4.2c3.5-2 7.6-.6 8.6 2.6l-4.6 4.4c-.6-2.3-2.6-3.8-5.2-3.6z" fill="#cfd3d8"/><path d="M16 11.2c-.6-2.3-2.6-3.8-5.2-3.6l.8-1.2c2.4 0 4.4 1.4 5.2 3.6z" fill="#9ea3a9"/>',
+  pick: '<path d="M8 21.5L14 8" stroke="#8a5a32" stroke-width="2.6" stroke-linecap="round"/><path d="M3.5 9.5C8 4.5 15 3.5 21 6.5c-4.5-.6-9 .3-12.5 3.4-1.8-.8-3.5-.9-5-.4z" fill="#cfd3d8"/>',
+  rod: '<path d="M3.5 21L19 3.5" stroke="#8a5a32" stroke-width="2.4" stroke-linecap="round"/><path d="M19 3.5c1.5 6 .5 10.5-1.8 13.5" stroke="#e9e3d2" stroke-width="1" fill="none"/><circle cx="17" cy="18.2" r="1.9" fill="#e8505b"/><circle cx="7.5" cy="16.5" r="2.2" fill="none" stroke="#c7a46a" stroke-width="1.6"/>',
+  bow: '<path d="M6.5 2.5c8.5 3 11.5 11.5 9.5 19" stroke="#8a5a32" stroke-width="2.6" fill="none" stroke-linecap="round"/><path d="M6.5 2.5l9.5 19" stroke="#e9e3d2" stroke-width="1.1"/>',
+  canteen: '<path d="M8 6h8v3a6 6 0 0 1 2 4.5V18a3 3 0 0 1-3 3H9a3 3 0 0 1-3-3v-4.5A6 6 0 0 1 8 9z" fill="#7a4f2a"/><rect x="9" y="3" width="6" height="3" rx="1" fill="#c7a46a"/><path d="M6.5 14h11" stroke="#c7a46a" stroke-width="1.6"/>',
+  fire: '<path d="M12 3c1 4 6 6 6 11a6 6 0 0 1-12 0c0-3 2-4 3-7 1 2 2 3 3 3 0-3-1-5 0-7z" fill="#ff8a2a"/><path d="M12 11c1 2 3 3 3 5a3 3 0 0 1-6 0c0-1.5 1-2 1.5-3 .5 1 1 1.5 1.5 1.5z" fill="#ffd27a"/>',
+  chest: '<rect x="3" y="8" width="18" height="12" rx="2" fill="#9a6436"/><path d="M3 10a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4v2H3z" fill="#b07a45"/><rect x="10.5" y="11" width="3" height="4" rx="1" fill="#e2c26b"/>',
+};
+
+export const ico = (k, cls = '') => `<span class="ico ${cls}"><svg viewBox="0 0 24 24" aria-hidden="true">${ICON[k] || ''}</svg></span>`;
