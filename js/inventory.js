@@ -3,7 +3,15 @@
 import { ITEMS, maxStack } from './data/items.js';
 
 export class Inventory {
-  constructor(size, slots = null) { this.slots = slots || Array(size).fill(null); }
+  /** hot = how many leading slots form the hotbar (tools go there first, everything else last) */
+  constructor(size, slots = null, hot = 0) { this.slots = slots || Array(size).fill(null); this.hot = hot; }
+
+  emptyOrder(k) {
+    const n = this.slots.length, all = [...Array(n).keys()];
+    if (!this.hot) return all;
+    const it = ITEMS[k], handy = it.tool || it.canteen;
+    return handy ? all : [...all.slice(this.hot), ...all.slice(0, this.hot)];
+  }
 
   static stack(k, n = 1) {
     const it = ITEMS[k], s = { k, n };
@@ -20,13 +28,13 @@ export class Inventory {
   add(k, n) {
     const m = maxStack(k);
     for (const s of this.slots) if (n > 0 && s && s.k === k && s.n < m) { const a = Math.min(n, m - s.n); s.n += a; n -= a; }
-    for (let i = 0; i < this.slots.length && n > 0; i++) if (!this.slots[i]) { const a = Math.min(n, m); this.slots[i] = Inventory.stack(k, a); n -= a; }
+    for (const i of this.emptyOrder(k)) { if (n <= 0) break; if (!this.slots[i]) { const a = Math.min(n, m); this.slots[i] = Inventory.stack(k, a); n -= a; } }
     return n;
   }
 
   /** Put an existing stack (keeps durability / water). Returns how many did NOT fit. */
   addStack(s) {
-    if (maxStack(s.k) === 1) { const i = this.slots.indexOf(null); if (i < 0) return s.n; this.slots[i] = s; return 0; }
+    if (maxStack(s.k) === 1) { const i = this.emptyOrder(s.k).find(j => !this.slots[j]); if (i === undefined) return s.n; this.slots[i] = s; return 0; }
     return this.add(s.k, s.n);
   }
 
@@ -47,9 +55,9 @@ export class Inventory {
     this.slots.forEach((s, i) => { if (s && s.k === k && (best < 0 || s.d < this.slots[best].d)) best = i; });
     return best;
   }
-  /** Use a tool once. Returns 'broke', 'ok' or null (no tool). */
-  wear(k) {
-    const i = this.toolIndex(k); if (i < 0) return null;
+  /** Use a tool once (the one in `slot` if given). Returns 'broke', 'ok' or null (no tool). */
+  wear(k, slot) {
+    const i = (slot !== undefined && this.slots[slot]?.k === k) ? slot : this.toolIndex(k); if (i < 0) return null;
     const s = this.slots[i]; s.d--;
     if (s.d <= 0) { this.slots[i] = null; return 'broke'; }
     return 'ok';
@@ -67,3 +75,6 @@ export function moveSlot(from, i, to) {
   if (left <= 0) from.slots[i] = null; else s.n = left;
   return moved;
 }
+
+/** Swap two slots inside one container. */
+export function swapSlots(inv, a, b) { const t = inv.slots[a]; inv.slots[a] = inv.slots[b]; inv.slots[b] = t; }

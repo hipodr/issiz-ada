@@ -7,9 +7,13 @@ export const BAG_SLOTS = 16;
 export const CHEST_SLOTS = 16;
 export const STACK = 20;          // default max items per slot
 export const FIRE_MAX = 300;      // seconds of fuel a fire can hold
+export const COOK_SLOTS = 3;      // food places on a campfire
+export const COOK_TIME = 10;      // seconds to cook one item
+export const BURN_TIME = 30;      // seconds a cooked item can wait before it burns
+export const HOTBAR = 4;          // first N bag slots are the quick-access bar
 
 export const SAVE_KEY = 'issizada.save';
-export const SAVE_VERSION = 3;    // bump when the save shape changes; add a migration in save.js
+export const SAVE_VERSION = 4;    // bump when the save shape changes; add a migration in save.js
 export const BEST_KEY = 'issizada.best';
 
 export const TILE = Object.freeze({ DEEP: 0, SHAL: 1, SAND: 2, GRASS: 3, FOREST: 4, POND: 5 });

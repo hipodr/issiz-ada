@@ -4,6 +4,7 @@ import { hash2, clamp } from '../util.js';
 import { RES } from '../data/resources.js';
 import { STRUCT } from '../data/structures.js';
 import { ANIMALS } from '../data/animals.js';
+import { ITEMS } from '../data/items.js';
 import { shadow, circle } from './shapes.js';
 const { DEEP, SHAL, SAND, POND } = TILE;
 
@@ -61,13 +62,14 @@ export class Renderer {
       ctx.fillRect(x * T + hash2(x, y, 9) * 28, y * T + hash2(x, y, 10) * 28, 2, 2);
     }
 
-    // target ring
-    const tg = G.target;
-    if (playing && tg && tg.type !== 'fishing') {
+    // target rings: white = El (grab), orange = Kullan (use)
+    const ring = (tg, col) => {
+      if (!tg || tg.x === undefined || tg.type === 'fishing' || tg.type === 'none') return;
       const r = (tg.r || 8) + 6, p = 1 + Math.sin(tm * 6) * .06;
-      ctx.save(); ctx.strokeStyle = tg.locked ? 'rgba(255,150,150,.7)' : 'rgba(255,255,255,.75)'; ctx.lineWidth = 1.6; ctx.setLineDash([4, 4]); ctx.lineDashOffset = -tm * 10;
+      ctx.save(); ctx.strokeStyle = tg.locked ? 'rgba(255,150,150,.7)' : col; ctx.lineWidth = 1.6; ctx.setLineDash([4, 4]); ctx.lineDashOffset = -tm * 10;
       ctx.beginPath(); ctx.ellipse(tg.x, tg.y + 3, r * p, r * .55 * p, 0, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
-    }
+    };
+    if (playing) { ring(G.grabT, 'rgba(255,255,255,.8)'); ring(G.useT, 'rgba(255,165,70,.95)'); }
 
     // y-sorted world objects
     const list = [];
@@ -140,14 +142,7 @@ export class Renderer {
     ctx.globalCompositeOperation = 'source-over';
   }
 
-  heldTool(G) {
-    const tg = G.target, has = k => G.inv.has(k);
-    if (G.fishing) return 'rod';
-    if (tg && tg.type === 'res') { const tool = RES[tg.o.k].tool; if (tool && has(tool)) return tool; }
-    if (tg && tg.type === 'animal' && has('bow')) return 'bow';
-    if (tg && tg.type === 'sea') return 'rod';
-    return has('axe') ? 'axe' : has('pick') ? 'pick' : null;
-  }
+  heldTool(G) { const h = G.held(); return h ? h.k : null; }
 
   drawPlayer(G) {
     const { ctx } = this, P = G.P, x = P.x, y = P.y, tm = G.clock;
@@ -159,11 +154,13 @@ export class Renderer {
       const sw = P.swing > 0 ? Math.sin((1 - P.swing / .22) * Math.PI) * 1.4 : 0;
       const ang = Math.atan2(P.fy, P.fx) - .9 + sw * 1.6, hx = x + P.fx * 5, hy = y - 5 + bob;
       const len = tool === 'rod' ? 22 : 12, ex = hx + Math.cos(ang) * len, ey = hy + Math.sin(ang) * len;
-      if (tool === 'bow') {
+      if (ITEMS[tool].food || ITEMS[tool].canteen || !ITEMS[tool].tool) {
+        circle(ctx, hx + P.fx * 4, hy + 3, 3.2, ITEMS[tool].c);
+      } else if (tool === 'bow') {
         const a = Math.atan2(P.fy, P.fx);
         ctx.strokeStyle = '#8a5a32'; ctx.lineWidth = 2.2; ctx.beginPath(); ctx.arc(hx + P.fx * 4, hy + P.fy * 4, 9, a - 1.2, a + 1.2); ctx.stroke();
       } else {
-        ctx.strokeStyle = '#7a5532'; ctx.lineWidth = tool === 'rod' ? 1.6 : 2.2; ctx.beginPath(); ctx.moveTo(hx, hy); ctx.lineTo(ex, ey); ctx.stroke();
+        ctx.strokeStyle = '#7a5532'; ctx.lineWidth = tool === 'rod' ? 1.6 : tool === 'club' ? 3.6 : 2.2; ctx.beginPath(); ctx.moveTo(hx, hy); ctx.lineTo(ex, ey); ctx.stroke();
         if (tool === 'axe') circle(ctx, ex, ey, 3, '#c9ccd1');
         if (tool === 'pick') { ctx.strokeStyle = '#c9ccd1'; ctx.lineWidth = 2.4; ctx.beginPath(); ctx.moveTo(ex - Math.sin(ang) * 5, ey + Math.cos(ang) * 5); ctx.lineTo(ex + Math.sin(ang) * 5, ey - Math.cos(ang) * 5); ctx.stroke(); }
       }

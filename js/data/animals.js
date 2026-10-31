@@ -3,6 +3,7 @@
 //  count      how many the island keeps alive (respawns far from the player)
 //  tiles      tile types it spawns on
 //  speed      wander speed; fleeSpeed / fleeDist for 'flee'
+//  hp         health (arrow = 2 dmg, weapons use their melee value)
 //  hitR       arrow hit radius; drops [[itemId, n]] when killed
 import { TILE } from '../config.js';
 import { shadow, circle, ellipse } from '../render/shapes.js';
@@ -10,7 +11,7 @@ import { shadow, circle, ellipse } from '../render/shapes.js';
 export const ANIMALS = {
   rabbit: {
     n: 'Tavşan', ai: 'flee', count: 22, tiles: [TILE.GRASS, TILE.FOREST],
-    speed: 35, fleeSpeed: 150, fleeDist: 95, hitR: 11, drops: [['meat', 2]],
+    hp: 1, speed: 35, fleeSpeed: 150, fleeDist: 95, hitR: 11, drops: [['meat', 2]],
     draw(ctx, a) {
       const hop = Math.abs(Math.sin(a.hop)) * 4, f = a.face || 1, x = a.x, y = a.y - hop;
       shadow(ctx, a.x, a.y + 2, 6, 2.4);

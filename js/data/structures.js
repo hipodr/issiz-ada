@@ -2,31 +2,35 @@
 // Add a new buildable (hut, bed, workbench…) = add an entry here + a recipe with place: '<id>'.
 //  n          display name
 //  r          collision radius (0 = walk-through)
-//  init(e)    set default fields on a new entity
-//  label(e,G) action-button text when the player stands next to it
-//  interact(e,G)  what the action button does; return 'once' to require a fresh tap
+//  init(e)    set default fields on a new entity;  fix(e) patch entities loaded from older saves
+//  label(e,G) El-button text when the player stands next to it
+//  interact(e,G)  what the El button does; return 'once' to require a fresh tap
 //  update(e,dt,G) optional per-frame logic
 //  light(e)   light radius at night (0 = none);  warm(e) radius that protects from cold
 //  draw(ctx,e,t)
-import { FIRE_MAX, CHEST_SLOTS } from '../config.js';
+import { FIRE_MAX, CHEST_SLOTS, COOK_SLOTS, COOK_TIME, BURN_TIME } from '../config.js';
 import { ITEMS } from './items.js';
 import { shadow, circle } from '../render/shapes.js';
 
 export const STRUCT = {
   fire: {
     n: 'Kamp ateşi', r: 10,
-    init(e) { e.fuel = 150; },
-    label(e, G) { return G.fireWillCook(e) ? 'Pişir' : e.fuel > 0 ? 'Odun at' : 'Yak'; },
-    interact(e, G) {
-      if (G.fireWillCook(e)) return G.cookSlot(G.inv.firstCookable());
-      if (!G.inv.count('wood')) { G.ui.toast('Odun yok'); return; }
-      G.inv.remove('wood', 1); e.fuel = Math.min(FIRE_MAX, e.fuel + 60);
-      G.burst(e.x, e.y - 6, ['#ffb347', '#ffd27a', '#ff7a2f']); G.floatText(e.x, e.y - 30, '+60 sn ateş', '#ffd27a'); G.ui.changed();
-    },
+    init(e) { e.fuel = 150; e.cook = Array(COOK_SLOTS).fill(null); },
+    fix(e) { if (!e.cook) e.cook = Array(COOK_SLOTS).fill(null); },
+    label: () => 'Ateş',
+    interact(e, G) { G.ui.openFire(e); return 'once'; },
+    // cooking slots: { k: itemId, t: seconds in current stage, st: 'raw' | 'done' | 'burnt' }
     update(e, dt, G) {
       if (e.fuel <= 0) return;
       e.fuel = Math.max(0, e.fuel - dt);
-      if (e.fuel === 0 && Math.hypot(e.x - G.P.x, e.y - G.P.y) < 320) G.ui.toast('Ateş söndü');
+      const near = Math.hypot(e.x - G.P.x, e.y - G.P.y) < 320;
+      if (e.fuel === 0 && near) G.ui.toast('Ateş söndü');
+      for (const c of e.cook) {
+        if (!c || c.st === 'burnt') continue;
+        c.t += dt;
+        if (c.st === 'raw' && c.t >= COOK_TIME) { c.k = ITEMS[c.k].cook; c.st = 'done'; c.t = 0; G.ui.changed(); if (near) { G.ui.toast(`${ITEMS[c.k].n} pişti!`); G.ui.vibrate(30); } }
+        else if (c.st === 'done' && c.t >= BURN_TIME) { c.k = 'burnt'; c.st = 'burnt'; c.t = 0; G.ui.changed(); if (near) G.ui.toast('Yemek yandı!'); }
+      }
     },
     light: e => e.fuel > 0 ? 175 * Math.min(1, .55 + e.fuel / 120) : 0,
     warm: e => e.fuel > 0 ? 130 : 0,
@@ -36,6 +40,7 @@ export const STRUCT = {
       for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2; circle(ctx, x + Math.cos(a) * 10, y + Math.sin(a) * 6, 3.2, i % 2 ? '#8d908a' : '#a7aaa4'); }
       ctx.strokeStyle = '#6b4a2b'; ctx.lineWidth = 3.5; ctx.beginPath();
       ctx.moveTo(x - 7, y + 3); ctx.lineTo(x + 7, y - 3); ctx.moveTo(x - 7, y - 3); ctx.lineTo(x + 7, y + 3); ctx.stroke();
+      (e.cook || []).forEach((c, i) => { if (c) circle(ctx, x - 7 + i * 7, y - 4, 2.8, ITEMS[c.k].c); });
       if (e.fuel <= 0) { circle(ctx, x, y, 3, '#3a2a20'); return; }
       const k = Math.min(1, .5 + e.fuel / 120);
       const flame = (dx, h, w, c, ph) => {

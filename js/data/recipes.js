@@ -11,6 +11,7 @@ export const RECIPES = [
   { id: 'rod',     out: ['rod', 1],     cost: { wood: 2, rope: 2 },             d: 'Kıyıda balık tut. 25 kullanım.' },
   { id: 'bow',     out: ['bow', 1],     cost: { wood: 3, rope: 2 },             d: 'Tavşan avla. 30 atış.' },
   { id: 'arrow',   out: ['arrow', 4],   cost: { wood: 1, stone: 1, fiber: 1 },  d: '4 ok yapar.' },
+  { id: 'club',    out: ['club', 1],    cost: { wood: 1 },                      d: 'Saldırı silahı. Yakındaki hayvana vurur. 25 kullanım.' },
   { id: 'canteen', out: ['canteen', 1], cost: { shell: 1, rope: 1 },            d: 'Gölden doldur, 3 yudum su taşı.' },
   { id: 'chest',   place: 'chest',      cost: { wood: 10, rope: 2 },            d: '16 slotluk depo, yere kurulur.' },
 ];

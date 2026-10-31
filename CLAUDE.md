@@ -27,6 +27,16 @@ js/main.js            boot, loop, menu/play/over state
 tools/smoke.mjs       headless test of the real game logic + one render pass
 ```
 
+## Controls (owner's design)
+- Hotbar = first 4 bag slots (`HOTBAR`); the selected one is the item in hand (`G.hand`). Tools go there first.
+- **El** button (grab) → `findGrab/doGrab`: drops, hand-gather resources (`gather: true`), pond, chest, fire screen.
+- **Kullan** button (use) → `findUse/doUse`: depends on the held item — tool `dmg[mat]` hits trees/rocks,
+  `melee` weapons (Sopa) hit animals, `use:'shoot'` bow, `use:'fish'` rod, food = eat, canteen = drink.
+- Sopa is a weapon only (no tree damage). Axe/pick are required for trees/rocks.
+- Campfire opens a sheet: add wood, put raw food on 3 cook slots (COOK_TIME), take it before it burns (BURN_TIME).
+  The fire sheet does not pause the game; bag/craft/chest do (`PAUSING` in ui.js).
+- Tapping a material/recipe icon shows a tooltip (item `d` + `src`).
+
 ## Rules of the codebase
 - `game.js` never touches the DOM. It talks to the screen only via `this.ui` (toast, bump, changed, vibrate, openChest, over).
 - Renderer only reads state.
@@ -49,7 +59,8 @@ tools/smoke.mjs       headless test of the real game logic + one render pass
 
 ## Roadmap (agreed with the owner)
 1. ✅ Bag 16 slots × 20, tool durability, rope, chest
-2. ✅ Fishing (bite mini-game), bow + arrows + rabbits, cooking, raw-food sickness, canteen
+2. ✅ Fishing (bite mini-game), bow + arrows + rabbits, timed cooking, raw-food sickness, canteen
+2b. ✅ Hotbar + El/Kullan buttons, Sopa weapon, fire screen, tooltips
 3. Shelter: prefab hut → upgradeable house; energy bar + sleep (skip night)
 4. Few dangerous animals (boar, `ai: 'hostile'`), weather (rain/storm puts out fires), farming, sounds, minimap
 Goal is endless survival with a day record (no escape ending).

@@ -11,13 +11,14 @@ let state = 'menu';
 const ui = new UI({ onOver: () => gameOver() });
 const renderer = new Renderer($('cv'));
 const input = new Input({
-  canvas: $('cv'), joy: $('joy'), knob: $('knob'), actBtn: $('actBtn'),
+  canvas: $('cv'), joy: $('joy'), knob: $('knob'), useBtn: $('useBtn'), grabBtn: $('grabBtn'),
   canMove: () => state === 'play' && !ui.sheet,
   onFirstMove: () => { $('hint').hidden = true; },
   onKey: k => {
     if (state !== 'play') return false;
     if (k === 'b' || k === 'c') { const n = k === 'b' ? 'bag' : 'craft'; ui.sheet === n ? ui.close() : ui.open(n); return true; }
     if (k === 'escape') { ui.close(); return true; }
+    if (k >= '1' && k <= '4') { G.setHand(+k - 1); return true; }
     return false;
   },
 });
@@ -27,7 +28,7 @@ let G = new Game(ui);
 G.newGame(20261031);           // menu backdrop island
 ui.attach(G);
 
-function showHud(on) { for (const id of ['hud', 'controls']) $(id).hidden = !on; $('hint').hidden = !on; }
+function showHud(on) { for (const id of ['hud', 'controls', 'dock']) $(id).hidden = !on; $('hint').hidden = !on; }
 function start(game) {
   G = game; G.best = getBest(); ui.attach(G);
   state = 'play'; $('menu').hidden = true; $('end').hidden = true; showHud(true);
@@ -55,7 +56,7 @@ window.addEventListener('resize', () => renderer.resize());
 let last = 0;
 function frame(ts) {
   const dt = Math.min(.05, Math.max(0, (ts - last) / 1000)); last = ts;
-  if (state === 'play' && !ui.sheet && !G.dead) G.update(dt, input); else G.idle(dt, state === 'menu');
+  if (state === 'play' && !ui.paused && !G.dead) G.update(dt, input); else G.idle(dt, state === 'menu');
   renderer.draw(G, state !== 'menu');
   ui.tick(dt);
   requestAnimationFrame(frame);
