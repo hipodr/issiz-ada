@@ -1,18 +1,20 @@
 // Canvas renderer: reads game state, never changes it.
 import { T, MAP, TILE } from '../config.js';
-import { hash2, clamp } from '../util.js';
+import { hash2, clamp, vnoise } from '../util.js';
 import { RES } from '../data/resources.js';
 import { STRUCT } from '../data/structures.js';
 import { ANIMALS } from '../data/animals.js';
 import { ITEMS } from '../data/items.js';
 import { shadow, circle } from './shapes.js';
-const { DEEP, SHAL, SAND, POND } = TILE;
+const { DEEP, SHAL, SAND, FOREST, POND } = TILE;
 
 const WATER = [];
 WATER[DEEP] = [...Array(8)].map((_, i) => `hsl(201,52%,${(25 + i * .7).toFixed(1)}%)`);
 WATER[SHAL] = [...Array(8)].map((_, i) => `hsl(186,52%,${(42 + i * 1.1).toFixed(1)}%)`);
 WATER[POND] = [...Array(8)].map((_, i) => `hsl(196,62%,${(46 + i * 1.2).toFixed(1)}%)`);
 const TILES_ACROSS = 11;   // how many tiles fit across the short side of the screen
+const CELL = 2;            // ground texture: world units per pixel (16×16 pixels per tile)
+const CHUNK = 8;           // ground is built lazily in CHUNK×CHUNK-tile pieces
 
 export class Renderer {
   constructor(canvas) {
@@ -38,53 +40,40 @@ export class Renderer {
     const y0 = Math.floor((cam.y - hh) / T) - 1, y1 = Math.floor((cam.y + hh) / T) + 2;
     const cx0 = Math.max(0, x0), cx1 = Math.min(MAP - 1, x1), cy0 = Math.max(0, y0), cy1 = Math.min(MAP - 1, y1);
 
-    // ground & water
+    // water underneath (animated per tile), then the detailed ground image on top
     for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
-      const inside = x >= 0 && y >= 0 && x < MAP && y < MAP, i = y * MAP + x, t = inside ? W.tiles[i] : DEEP;
-      if (t === DEEP || t === SHAL || t === POND) {
-        ctx.fillStyle = WATER[t][((Math.sin(tm * 1.4 + x * .8 + y * .5) + Math.sin(tm * .9 - x * .3 + y * .9) + 2) / 4 * 7.99) | 0];
-      } else ctx.fillStyle = W.col[i];
+      const inside = x >= 0 && y >= 0 && x < MAP && y < MAP, i = y * MAP + x;
+      const t = inside ? (this.under ? this.under[i] : W.tiles[i]) : DEEP;
+      if (t === 255) continue;                                   // solid land, image covers it
+      if (t === DEEP || t === SHAL || t === POND) ctx.fillStyle = WATER[t][((Math.sin(tm * 1.4 + x * .8 + y * .5) + Math.sin(tm * .9 - x * .3 + y * .9) + 2) / 4 * 7.99) | 0];
+      else ctx.fillStyle = W.col[i];
       ctx.fillRect(x * T, y * T, T + .6, T + .6);
     }
-    const fw = 3 + Math.sin(tm * 1.5) * 1.5;
-    ctx.fillStyle = `rgba(255,255,255,${(.28 + Math.sin(tm * 2) * .12).toFixed(3)})`;
-    for (let y = cy0; y <= cy1; y++) for (let x = cx0; x <= cx1; x++) {
-      const m = W.foam[y * MAP + x]; if (!m) continue;
-      if (m & 1) ctx.fillRect(x * T, y * T, T, fw);
-      if (m & 2) ctx.fillRect(x * T + T - fw, y * T, fw, T);
-      if (m & 4) ctx.fillRect(x * T, y * T + T - fw, T, fw);
-      if (m & 8) ctx.fillRect(x * T, y * T, fw, T);
-    }
-    ctx.fillStyle = 'rgba(0,0,0,.08)';
-    for (let y = cy0; y <= cy1; y++) for (let x = cx0; x <= cx1; x++) {
-      const t = W.tiles[y * MAP + x]; if (t < SAND || t === POND) continue;
-      ctx.fillRect(x * T + hash2(x, y, 7) * 28, y * T + hash2(x, y, 8) * 28, 3, 2);
-      ctx.fillRect(x * T + hash2(x, y, 9) * 28, y * T + hash2(x, y, 10) * 28, 2, 2);
-    }
-
-    // cliffs & ramps (plateaus): south rock face hangs over the lower tile, side edges get a dark line
-    const CH = 13;
-    for (let y = cy0; y <= cy1; y++) for (let x = cx0; x <= cx1; x++) {
-      const i = y * MAP + x;
-      if (W.ramp[i]) {
-        ctx.fillStyle = 'rgba(70,45,20,.35)';
-        for (let k = 1; k < 4; k++) ctx.fillRect(x * T + 3, y * T + k * 8, T - 6, 2);
-        ctx.fillStyle = 'rgba(0,0,0,.18)'; ctx.fillRect(x * T, y * T, 2, T); ctx.fillRect(x * T + T - 2, y * T, 2, T);
-        continue;
+    if (this.groundFor !== W) this.prepareGround(W);
+    if (this.chunks) {
+      ctx.imageSmoothingEnabled = false;
+      let built = this.chunks.size ? 0 : -99;           // first frame: build everything visible at once
+      for (let ky = Math.max(0, Math.floor(y0 / CHUNK)); ky <= Math.min(MAP / CHUNK - 1, Math.floor(y1 / CHUNK)); ky++)
+        for (let kx = Math.max(0, Math.floor(x0 / CHUNK)); kx <= Math.min(MAP / CHUNK - 1, Math.floor(x1 / CHUNK)); kx++) {
+          const key = ky * 64 + kx;
+          let c = this.chunks.get(key);
+          if (!c && built < 1) { c = this.buildChunk(W, kx, ky); this.chunks.set(key, c); built++; }
+          if (c) ctx.drawImage(c, kx * CHUNK * T, ky * CHUNK * T, CHUNK * T + .6, CHUNK * T + .6);
+          else for (let y = ky * CHUNK; y < (ky + 1) * CHUNK; y++) for (let x = kx * CHUNK; x < (kx + 1) * CHUNK; x++) {
+            const t = W.tiles[y * MAP + x]; if (t === DEEP || t === SHAL || t === POND) continue;
+            ctx.fillStyle = W.col[y * MAP + x]; ctx.fillRect(x * T, y * T, T + .6, T + .6);
+          }
+        }
+      // gentle surf: a pulsing light band on the water side of the shore
+      ctx.fillStyle = `rgba(255,255,255,${(.12 + Math.sin(tm * 2) * .07).toFixed(3)})`;
+      const fw = 2 + Math.sin(tm * 1.5) * 1.5;
+      for (let y = cy0; y <= cy1; y++) for (let x = cx0; x <= cx1; x++) {
+        const m = W.foam[y * MAP + x]; if (!m) continue;
+        if (m & 1) ctx.fillRect(x * T, y * T + 4, T, fw);
+        if (m & 2) ctx.fillRect(x * T + T - 4 - fw, y * T, fw, T);
+        if (m & 4) ctx.fillRect(x * T, y * T + T - 4 - fw, T, fw);
+        if (m & 8) ctx.fillRect(x * T + 4, y * T, fw, T);
       }
-      const m = W.cliff[i]; if (!m) continue;
-      if (m & 1) {
-        const h = CH * (W.lvl[i] - W.lvl[i + MAP]), fy = (y + 1) * T;
-        ctx.fillStyle = '#7d6a55'; ctx.fillRect(x * T, fy, T + .6, h);
-        ctx.fillStyle = '#665443'; ctx.fillRect(x * T, fy + h * .55, T + .6, h * .45);
-        ctx.fillStyle = 'rgba(0,0,0,.22)'; ctx.fillRect(x * T, fy + h, T + .6, 4);
-        ctx.fillStyle = '#98846c'; ctx.fillRect(x * T, fy, T + .6, 2);
-        ctx.fillStyle = 'rgba(40,30,20,.35)'; ctx.fillRect(x * T + hash2(x, y, 3) * 24, fy + 3, 2, h - 5); ctx.fillRect(x * T + 4 + hash2(x, y, 4) * 20, fy + 5, 1.5, h - 7);
-      }
-      ctx.fillStyle = 'rgba(30,24,16,.45)';
-      if (m & 2) ctx.fillRect(x * T, y * T, 2.5, T + (m & 1 ? CH : 0));
-      if (m & 4) ctx.fillRect(x * T + T - 2.5, y * T, 2.5, T + (m & 1 ? CH : 0));
-      if (m & 8) { ctx.fillStyle = 'rgba(255,255,255,.18)'; ctx.fillRect(x * T, y * T, T, 2); }
     }
 
     // target rings: white = El (grab), orange = Kullan (use)
@@ -105,7 +94,7 @@ export class Renderer {
     for (const o of list) {
       if (o === G.P) this.drawPlayer(G);
       else if (o.cat === 'res') RES[o.k].draw(ctx, o, tm);
-      else if (o.cat === 'ent') STRUCT[o.k].draw(ctx, o, tm);
+      else if (o.cat === 'ent') STRUCT[o.k].draw(ctx, o, tm, G);
       else ANIMALS[o.k].draw(ctx, o, tm);
     }
 
@@ -186,6 +175,72 @@ export class Renderer {
       ctx.fillStyle = g; ctx.fillRect(sx - r, sy - r, r * 2, r * 2);
     }
     ctx.globalCompositeOperation = 'source-over';
+  }
+
+  // ---------- detailed ground: one image for the whole island, CELL world units per pixel ----------
+  // Organic borders (tile type sampled with a little noise jitter), grass / sand / forest texture,
+  // hill shading from W.elev (light from the north-west), rocky mountain tops and crags.
+  // Water pixels stay transparent so the animated water drawn underneath shows through.
+  prepareGround(W) {
+    this.groundFor = W; this.chunks = null; this.under = null;
+    if (typeof ImageData === 'undefined' || typeof document === 'undefined') return;   // headless tests
+    this.chunks = new Map();
+    // what to paint under each tile: 255 = solid land (skip); water tiles and land tiles touching water get a water colour
+    const under = new Uint8Array(MAP * MAP).fill(255);
+    for (let y = 0; y < MAP; y++) for (let x = 0; x < MAP; x++) {
+      const i = y * MAP + x, t = W.tiles[i];
+      if (t === DEEP || t === SHAL || t === POND) { under[i] = t; continue; }
+      let w = 255;
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const q = W.at(x + dx, y + dy); if (q === POND) w = POND; else if ((q === SHAL || q === DEEP) && w !== POND) w = SHAL; }
+      under[i] = w;
+    }
+    this.under = under;
+  }
+  buildChunk(W, kx, ky) {
+    const per = T / CELL, S = CHUNK * per, px = new Uint8ClampedArray(S * S * 4), s = W.seed % 9973;
+    const tileAt = (fx, fy) => { const x = Math.floor(fx), y = Math.floor(fy); return (x < 0 || y < 0 || x >= MAP || y >= MAP) ? DEEP : W.tiles[y * MAP + x]; };
+    const E = (fx, fy) => W.elevAt(fx * T, fy * T);
+    const mix = (a, b, t) => a + (b - a) * t;
+    for (let ly = 0; ly < S; ly++) for (let lx = 0; lx < S; lx++) {
+      const cx = kx * S + lx, cy = ky * S + ly;
+      const fx = (cx + .5) / per, fy = (cy + .5) / per;
+      const jx = (vnoise(cx / 10, cy / 10, s + 91) - .5) * .7 + (vnoise(cx / 3, cy / 3, s + 93) - .5) * .15;
+      const jy = (vnoise(cx / 10 + 50, cy / 10 + 50, s + 92) - .5) * .7 + (vnoise(cx / 3 + 50, cy / 3 + 50, s + 94) - .5) * .15;
+      const t = tileAt(fx + jx, fy + jy), o = (ly * S + lx) * 4;
+      if (t === DEEP || t === SHAL || t === POND) continue;               // transparent → water below
+      const gx = Math.floor(fx + jx * .8), gy = Math.floor(fy + jy * .8), crag = gx >= 0 && gy >= 0 && gx < MAP && gy < MAP && W.crag[gy * MAP + gx];
+      const n1 = vnoise(cx / 14, cy / 14, s + 3), n2 = vnoise(cx / 4.4, cy / 4.4, s + 4), grain = hash2(cx, cy, s + 5);
+      const e = E(fx, fy);
+      let r, g, b;
+      if (t === SAND) {
+        const wet = [[.35, 0], [-.35, 0], [0, .35], [0, -.35]].some(([dx, dy]) => { const q = tileAt(fx + dx, fy + dy); return q === SHAL || q === DEEP; });
+        r = 222 + n1 * 14; g = 201 + n1 * 12; b = 146 + n1 * 10;
+        if (wet) { r -= 30; g -= 30; b -= 26; }
+        if (grain < .04) { r -= 25; g -= 25; b -= 20; }                    // pebbles / shells
+      } else if (crag) {
+        // boulder field: rounded rock lumps with lit tops and dark seams
+        const lump = vnoise(cx / 7, cy / 7, s + 6), seam = Math.abs(lump - .5) < .03;
+        const top = vnoise((cx - 1.5) / 7, (cy - 1.5) / 7, s + 6) - lump;
+        r = 116 + n1 * 18 + top * 260; g = 110 + n1 * 16 + top * 250; b = 102 + n1 * 14 + top * 240;
+        if (seam) { r *= .55; g *= .55; b *= .55; }
+      } else {
+        const forest = t === FOREST;
+        r = forest ? 54 + n1 * 16 : 92 + n1 * 22; g = forest ? 98 + n1 * 18 : 138 + n1 * 18; b = forest ? 48 + n1 * 10 : 70 + n1 * 12;
+        if (n2 > .64) { r += 8; g += 10; b += 4; } else if (n2 < .32) { r -= 6; g -= 6; b -= 3; }   // tufts and hollows
+        if (forest && grain < .035) { r = 96; g = 76; b = 46; }               // leaf litter
+        else if (!forest && grain < .0025) { r = 232; g = 216; b = 120; }    // tiny flowers
+        else if (!forest && grain > .9975) { r = 236; g = 236; b = 230; }
+        const rocky = Math.max(0, Math.min(1, (e - .68) / .22));           // mountain meadow → stony ground
+        if (rocky > 0) { const k = rocky * (.35 + n2 * .35); r = mix(r, 124 + n2 * 18, k); g = mix(g, 120 + n2 * 16, k); b = mix(b, 100 + n2 * 14, k); }
+      }
+      // hill shading: compare height up-left vs down-right (light from the north-west)
+      const d = .5, shade = (E(fx - d, fy - d) - E(fx + d, fy + d)) * 9;
+      const lit = 1 + Math.max(-.38, Math.min(.38, shade)) + e * .06 + (grain - .5) * .05;
+      px[o] = r * lit; px[o + 1] = g * lit; px[o + 2] = b * lit; px[o + 3] = 255;
+    }
+    const cv = document.createElement('canvas'); cv.width = S; cv.height = S;
+    cv.getContext('2d').putImageData(new ImageData(px, S, S), 0, 0);
+    return cv;
   }
 
   // what the hero holds: the tool for the current action, else the weapon

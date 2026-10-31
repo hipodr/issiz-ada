@@ -5,6 +5,7 @@ import { SAVE_KEY, SAVE_VERSION, BEST_KEY } from './config.js';
 const MIGRATIONS = {
   3: d => ({ ...d, v: 4, hand: 0 }),   // v4: hotbar hand index; fires get cook slots via STRUCT.fire.fix
   4: d => { const { hand, ...r } = d; return { ...r, v: 5, eq: {} }; },   // v5: no hotbar, equipment slots
+  7: d => ({ ...d, v: 8, res: [] }),   // v8: smooth hills replace plateaus; resource layout changed again
   6: d => ({ ...d, v: 7, res: [] }),   // v7: island has plateaus now; resource layout changed, so resource state resets
   5: d => ({ ...d, v: 6, home: null, s: { ...d.s, xp: Object.keys(d.done || {}).length * 20 + (d.s.day - 1) * 15 } }),   // v6: XP (estimated from progress), hut home
 };

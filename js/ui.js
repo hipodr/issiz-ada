@@ -3,8 +3,8 @@
 // Implements the `ui` interface Game calls: toast, bump, changed, vibrate, openChest, openFire, over.
 import { BAG_SLOTS, FIRE_MAX, COOK_TIME, BURN_TIME } from './config.js';
 import { ITEMS } from './data/items.js';
-import { RECIPES, CATS } from './data/recipes.js';
-import { STRUCT } from './data/structures.js';
+import { SORTED_RECIPES } from './data/recipes.js';
+import { STRUCT, HOME } from './data/structures.js';
 import { EQUIP_SLOTS, STATS } from './data/equipment.js';
 import { ICON, ico } from './data/icons.js';
 import { Inventory, moveSlot, swapSlots } from './inventory.js';
@@ -12,8 +12,8 @@ import { levelOf } from './game.js';
 import { maxStack } from './data/items.js';
 
 const $ = id => document.getElementById(id);
-const SHEETS = ['bag', 'craft', 'chest', 'fire'];
-export const PAUSING = new Set(['bag', 'craft', 'chest']);   // the fire sheet keeps time running so food cooks
+const SHEETS = ['bag', 'craft', 'chest', 'fire', 'home'];
+export const PAUSING = new Set(['bag', 'craft', 'chest', 'home']);   // the fire sheet keeps time running so food cooks
 
 export class UI {
   constructor({ onOver }) {
@@ -24,6 +24,8 @@ export class UI {
     for (const id of SHEETS) $(id + 'Close').onclick = () => this.close();
     $('scrim').onclick = () => this.close();
     $('woodBtn').onclick = () => { if (this.ent) this.G.fireAddWood(this.ent); };
+    $('sleepBtn').onclick = () => { const e = this.ent; if (e && this.G.canSleep()) { this.close(); this.G.sleep(e); } };
+    this.craftSel = null;
     document.addEventListener('pointerdown', e => { if (!$('tip').hidden && !e.target.closest('#tip,[data-tip]')) this.hideTip(); }, true);
     this.setupDrag();
   }
@@ -40,6 +42,7 @@ export class UI {
   vibrate(ms) { try { navigator.vibrate && navigator.vibrate(ms); } catch {} }
   openChest(e) { this.ent = e; this.open('chest', true); }
   openFire(e) { this.ent = e; this.open('fire', true); }
+  openHome(e) { this.ent = e; this.open('home', true); }
   over() { this.close(); this.onOver(); }
   levelUp(lvl, unlocked) {
     const b = $('banner');
@@ -71,6 +74,7 @@ export class UI {
     else if (this.sheet === 'craft') this.renderCraft();
     else if (this.sheet === 'chest') this.renderChest();
     else if (this.sheet === 'fire') this.renderFire();
+    else if (this.sheet === 'home') this.renderHome();
   }
 
   // ---- tooltips ----
@@ -232,27 +236,69 @@ export class UI {
     G.ui.changed(); this.vibrate(15);
   }
 
-  // ---- craft sheet ----
+  // ---- craft sheet: icon grid sorted by level + detail panel ----
+  costHTML(cost) {
+    const G = this.G;
+    return Object.entries(cost).map(([k, v]) => { const have = G.inv.count(k); return `<button type="button" data-tip="${k}" class="${have >= v ? '' : 'no'}">${ico(k)}<span>${ITEMS[k].n}</span> ${have}/${v}</button>`; }).join('');
+  }
   renderCraft() {
     const G = this.G, box = $('recs'); box.textContent = '';
     const L = levelOf(G.S.xp);
     $('craftLvl').innerHTML = `<b>Seviye ${L.lvl}</b><span class="bar xp"><i style="width:${(L.cur / L.need * 100).toFixed(1)}%"></i></span><small>${L.need - L.cur} XP sonra seviye ${L.lvl + 1}</small>`;
-    for (const cat of CATS) {
-      const list = RECIPES.filter(r => r.cat === cat); if (!list.length) continue;
-      box.insertAdjacentHTML('beforeend', `<div class="sec">${cat}</div>`);
-      for (const r of list) {
-        const outK = r.out?.[0], name = r.place ? STRUCT[r.place].n : ITEMS[outK].n + (r.out[1] > 1 ? ` ×${r.out[1]}` : '');
-        const lockedLvl = (r.lvl || 1) > L.lvl;
-        const el = document.createElement('div'); el.className = 'rec' + (lockedLvl ? ' locked' : '');
-        const costs = Object.entries(r.cost).map(([k, v]) => { const have = G.inv.count(k); return `<button type="button" data-tip="${k}" class="${have >= v ? '' : 'no'}">${ico(k)}<span>${ITEMS[k].n}</span> ${have}/${v}</button>`; }).join('');
-        el.innerHTML = `<div class="nm"${outK ? ` data-tip="${outK}"` : ''}>${ICON[r.id] ? ico(r.id) : ico(outK)}${name}</div><div class="ds">${r.d}</div><div class="cost">${costs}</div>`;
-        el.querySelectorAll('[data-tip]').forEach(b => b.onclick = () => this.showTip(b.dataset.tip, b));
-        const b = document.createElement('button'); b.type = 'button'; b.className = 'mk'; b.textContent = lockedLvl ? `Sv ${r.lvl}` : r.place ? 'Kur' : 'Yap';
-        b.disabled = lockedLvl || !G.inv.canAfford(r.cost);
-        b.onclick = () => { if (G.craft(r.id) && r.place) this.close(); else this.renderCraft(); };
-        el.appendChild(b); box.appendChild(el);
-      }
+    if (!this.craftSel || !SORTED_RECIPES.includes(this.craftSel)) this.craftSel = SORTED_RECIPES.find(r => (r.lvl || 1) <= L.lvl && G.inv.canAfford(r.cost)) || SORTED_RECIPES[0];
+    for (const r of SORTED_RECIPES) {
+      const outK = r.out?.[0], name = r.place ? STRUCT[r.place].n : ITEMS[outK].n;
+      const locked = (r.lvl || 1) > L.lvl, can = !locked && G.inv.canAfford(r.cost);
+      const el = document.createElement('button'); el.type = 'button';
+      el.className = 'ctile' + (locked ? ' locked' : '') + (can ? ' can' : '') + (r === this.craftSel ? ' sel' : '');
+      el.innerHTML = `${ICON[r.id] ? ico(r.id) : ico(outK)}<span class="cn">${name}${r.out?.[1] > 1 ? ` ×${r.out[1]}` : ''}</span>${locked ? `<span class="lk">Sv ${r.lvl}</span>` : can ? '<span class="ok"></span>' : ''}`;
+      el.onclick = () => { this.craftSel = r; this.renderCraft(); };
+      box.appendChild(el);
     }
+    const r = this.craftSel, det = $('craftDetail'), outK = r.out?.[0];
+    const locked = (r.lvl || 1) > L.lvl, name = r.place ? STRUCT[r.place].n : ITEMS[outK].n + (r.out[1] > 1 ? ` ×${r.out[1]}` : '');
+    det.innerHTML = `<div class="th lg"${outK ? ` data-tip="${outK}"` : ''}>${ICON[r.id] ? ico(r.id) : ico(outK)}<b>${name}</b></div><p class="muted">${r.d}</p><div class="cost">${this.costHTML(r.cost)}</div>`;
+    det.querySelectorAll('[data-tip]').forEach(b => b.onclick = () => this.showTip(b.dataset.tip, b));
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'mk';
+    b.textContent = locked ? `${r.lvl}. seviyede açılır` : r.place ? 'Kur' : 'Yap';
+    b.disabled = locked || !G.inv.canAfford(r.cost);
+    b.onclick = () => { if (G.craft(r.id) && r.place) this.close(); else this.renderCraft(); };
+    det.appendChild(b);
+  }
+
+  // ---- home (hut / shack): sleep, upgrade, storage ----
+  renderHome() {
+    const G = this.G, e = this.ent; if (!e) return this.close();
+    const cur = HOME[(e.lvl || 1) - 1], next = HOME[e.lvl || 1];
+    $('homeTitle').textContent = cur.n;
+    $('homeDesc').textContent = cur.d;
+    $('sleepBtn').disabled = !G.canSleep();
+    $('sleepBtn').textContent = G.canSleep() ? 'Uyu' : 'Akşam olunca uyuyabilirsin';
+    const up = $('upgradeBox');
+    if (next) {
+      const lockedLvl = (next.need || 1) > G.level;
+      up.hidden = false;
+      up.innerHTML = `<div class="sec">Yükselt: ${next.n}</div><p class="muted">${next.d}</p><div class="cost">${this.costHTML(next.cost)}</div>`;
+      up.querySelectorAll('[data-tip]').forEach(b => b.onclick = () => this.showTip(b.dataset.tip, b));
+      const b = document.createElement('button'); b.type = 'button'; b.className = 'mk';
+      b.textContent = lockedLvl ? `${next.need}. seviyede açılır` : `${next.n}ya yükselt`;
+      b.disabled = lockedLvl || !G.inv.canAfford(next.cost);
+      b.onclick = () => { G.upgradeHome(e); this.renderHome(); };
+      up.appendChild(b);
+    } else up.hidden = true;
+    const store = $('homeStore');
+    if (e.slots) {
+      store.hidden = false;
+      const homeInv = new Inventory(e.slots.length, e.slots);
+      const fill = (boxId, inv, other) => {
+        const box = $(boxId); box.textContent = '';
+        inv.slots.forEach((st, i) => box.appendChild(this.slotEl(st, { i, compact: true, onTap: j => {
+          if (!moveSlot(inv, j, other) && inv.slots[j]) this.toast('Yer yok');
+          G.ui.changed(); this.renderHome();
+        } })));
+      };
+      fill('homeSlots', homeInv, G.inv); fill('homeBagSlots', G.inv, homeInv);
+    } else store.hidden = true;
   }
 
   // ---- chest ----

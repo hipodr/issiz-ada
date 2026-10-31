@@ -12,6 +12,14 @@ import { FIRE_MAX, CHEST_SLOTS, COOK_SLOTS, COOK_TIME, BURN_TIME } from '../conf
 import { ITEMS } from './items.js';
 import { shadow, circle } from '../render/shapes.js';
 
+// Home upgrade path (the hut entity's e.lvl). Add a level = add an entry; its `cost` / `need` (player level)
+// is what upgrading TO it requires.
+export const HOME = [
+  { n: 'Kulübe', r: 18, warm: 70, light: 0, sleepHp: 40, slots: 0, d: 'Gece uyursun, ölürsen burada uyanırsın.' },
+  { n: 'Baraka', r: 26, warm: 120, light: 95, sleepHp: 70, slots: 12, need: 5, cost: { wood: 25, nail: 12, stone: 8, rope: 4 },
+    d: 'Daha iyi uyku (+70 sağlık), 12 slot depo, geniş sıcak alan ve gece fener ışığı.' },
+];
+
 export const STRUCT = {
   fire: {
     n: 'Kamp ateşi', r: 10,
@@ -55,22 +63,44 @@ export const STRUCT = {
   },
 
   hut: {
-    n: 'Kulübe', r: 18,
-    init(e) { e.lvl = 1; },            // e.lvl: room for upgrades (hut → house)
-    label: (e, G) => G.canSleep() ? 'Uyu' : 'Kulübe',
-    interact(e, G) { G.sleep(e); return 'once'; },
-    warm: () => 70,
-    draw(ctx, e) {
+    n: 'Kulübe', r: e => HOME[(e.lvl || 1) - 1].r,
+    init(e) { e.lvl = 1; },
+    fix(e) { e.lvl = e.lvl || 1; const h = HOME[e.lvl - 1]; if (h.slots && !e.slots) e.slots = Array(h.slots).fill(null); },
+    label: (e, G) => G.canSleep() ? 'Uyu' : HOME[(e.lvl || 1) - 1].n,
+    interact(e, G) { if (G.canSleep()) G.sleep(e); else G.ui.openHome(e); return 'once'; },
+    warm: e => HOME[(e.lvl || 1) - 1].warm,
+    light: e => HOME[(e.lvl || 1) - 1].light,
+    draw(ctx, e, t, G) {
       const { x, y } = e;
-      shadow(ctx, x + 3, y + 4, 30, 9);
-      ctx.fillStyle = '#8a5a30'; ctx.fillRect(x - 24, y - 26, 48, 28);                 // walls
-      ctx.fillStyle = '#6b4424'; for (let i = 0; i < 4; i++) ctx.fillRect(x - 24, y - 20 + i * 6, 48, 1.4);
-      ctx.fillStyle = '#3a2414'; ctx.fillRect(x - 6, y - 16, 12, 18);                   // door
-      ctx.fillStyle = '#c9a24a'; ctx.beginPath(); ctx.moveTo(x - 31, y - 22); ctx.lineTo(x, y - 50); ctx.lineTo(x + 31, y - 22); ctx.closePath(); ctx.fill();   // thatch
-      ctx.strokeStyle = '#a8822f'; ctx.lineWidth = 1.2; ctx.beginPath();
-      for (let i = -3; i <= 3; i++) { ctx.moveTo(x + i * 7, y - 22); ctx.lineTo(x + i * 2.2, y - 44); }
+      if ((e.lvl || 1) === 1) {
+        shadow(ctx, x + 3, y + 4, 30, 9);
+        ctx.fillStyle = '#8a5a30'; ctx.fillRect(x - 24, y - 26, 48, 28);
+        ctx.fillStyle = '#6b4424'; for (let i = 0; i < 4; i++) ctx.fillRect(x - 24, y - 20 + i * 6, 48, 1.4);
+        ctx.fillStyle = '#3a2414'; ctx.fillRect(x - 6, y - 16, 12, 18);
+        ctx.fillStyle = '#c9a24a'; ctx.beginPath(); ctx.moveTo(x - 31, y - 22); ctx.lineTo(x, y - 50); ctx.lineTo(x + 31, y - 22); ctx.closePath(); ctx.fill();
+        ctx.strokeStyle = '#a8822f'; ctx.lineWidth = 1.2; ctx.beginPath();
+        for (let i = -3; i <= 3; i++) { ctx.moveTo(x + i * 7, y - 22); ctx.lineTo(x + i * 2.2, y - 44); }
+        ctx.stroke();
+        ctx.fillStyle = '#e0c06a'; ctx.fillRect(x - 31, y - 24, 62, 3);
+        return;
+      }
+      // Baraka: wider plank shack with a plank roof, window, chimney and a lantern by the door
+      const night = G && G.darkness() > .3;
+      shadow(ctx, x + 4, y + 5, 40, 11);
+      ctx.fillStyle = '#7a5130'; ctx.fillRect(x - 34, y - 34, 68, 36);
+      ctx.fillStyle = '#5e3d22'; for (let i = 0; i < 6; i++) ctx.fillRect(x - 34, y - 29 + i * 6, 68, 1.4);
+      ctx.fillStyle = '#4a2f1a'; for (const px of [-34, -12, 12, 32]) ctx.fillRect(x + px, y - 34, 2.4, 36);
+      ctx.fillStyle = '#2e1c0e'; ctx.fillRect(x - 7, y - 22, 14, 24);
+      ctx.fillStyle = night ? '#ffd27a' : '#9cc3d6'; ctx.fillRect(x + 14, y - 26, 12, 9);
+      ctx.fillStyle = '#4a2f1a'; ctx.fillRect(x + 19.4, y - 26, 1.4, 9); ctx.fillRect(x + 14, y - 22, 12, 1.2);
+      ctx.fillStyle = '#6f6a63'; ctx.fillRect(x + 18, y - 66, 8, 18);                                  // chimney
+      ctx.fillStyle = '#5a3a24'; ctx.beginPath(); ctx.moveTo(x - 42, y - 30); ctx.lineTo(x, y - 62); ctx.lineTo(x + 42, y - 30); ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = '#3f2716'; ctx.lineWidth = 1.4; ctx.beginPath();
+      for (let i = 1; i < 6; i++) { const k = i / 6; ctx.moveTo(x - 42 + k * 42, y - 30 - k * 32); ctx.lineTo(x + 42 - k * 42, y - 30 - k * 32); }
       ctx.stroke();
-      ctx.fillStyle = '#e0c06a'; ctx.fillRect(x - 31, y - 24, 62, 3);
+      ctx.fillStyle = '#7a5130'; ctx.fillRect(x - 43, y - 32, 86, 3);
+      ctx.fillStyle = '#c9ccd1'; ctx.fillRect(x - 15, y - 20, 4, 6); ctx.fillStyle = night ? '#ffe08a' : '#8a8f96'; ctx.fillRect(x - 14.4, y - 19, 2.8, 4);   // lantern
+      if (t !== undefined && Math.random() < .04) { /* chimney smoke is drawn by the renderer's particles */ }
     },
   },
 

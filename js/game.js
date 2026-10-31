@@ -7,12 +7,12 @@ import { Inventory } from './inventory.js';
 import { ITEMS } from './data/items.js';
 import { RECIPES } from './data/recipes.js';
 import { RES } from './data/resources.js';
-import { STRUCT } from './data/structures.js';
+import { STRUCT, HOME } from './data/structures.js';
 import { ANIMALS } from './data/animals.js';
 import { EQUIP_SLOTS, sumStats } from './data/equipment.js';
 import { rollLoot, WRECK_MAX } from './data/loot.js';
 
-const NOOP_UI = { toast() {}, bump() {}, changed() {}, vibrate() {}, openChest() {}, openFire() {}, over() {}, levelUp() {}, sleep() {} };
+const NOOP_UI = { toast() {}, bump() {}, changed() {}, vibrate() {}, openChest() {}, openFire() {}, openHome() {}, over() {}, levelUp() {}, sleep() {} };
 
 /** Level from total XP. XP from level L to L+1 = XP_STEP * L. */
 export function levelOf(xp) {
@@ -126,7 +126,7 @@ export class Game {
     if (S.time > .5) S.day++;
     S.time = .06; S.coldWarned = false;
     S.hunger = Math.max(5, S.hunger - 20); S.thirst = Math.max(5, S.thirst - 20);
-    S.hp = Math.min(100, S.hp + 40); S.sick = 0;
+    S.hp = Math.min(100, S.hp + HOME[(hut.lvl || 1) - 1].sleepHp); S.sick = 0;
     for (const e of this.W.ents) STRUCT[e.k].update?.(e, skip, this);
     this.W.tickRegrow(skip, this.P);
     this.ui.sleep(S.day);
@@ -145,6 +145,25 @@ export class Game {
     S.hp = 60; S.hunger = Math.max(S.hunger, 50); S.thirst = Math.max(S.thirst, 50); S.sick = 0;
     this.ui.toast(lost ? 'Kulübende uyandın. Eşyaların düştüğün yerde' : 'Kulübende uyandın');
     this.ui.changed();
+    return true;
+  }
+
+  /** Upgrade the home one level (Kulübe → Baraka …). Returns true on success. */
+  upgradeHome(e) {
+    const next = HOME[(e.lvl || 1)]; if (!next) return false;
+    if (next.need > this.level) { this.ui.toast(`Bunun için ${next.need}. seviye gerekli`); return false; }
+    if (!this.inv.canAfford(next.cost)) { this.ui.toast('Malzemen eksik'); return false; }
+    const W = this.W, oldR = W.radius(e); e.lvl = (e.lvl || 1) + 1;
+    if (W.radius(e) > oldR) {                       // bigger footprint: make sure nothing is inside it
+      const R = W.radius(e) + this.P.r + 2;
+      if ((this.P.x - e.x) ** 2 + (this.P.y - e.y) ** 2 < R * R) { const d = Math.hypot(this.P.x - e.x, this.P.y - e.y) || 1; this.P.x = e.x + (this.P.x - e.x) / d * R; this.P.y = e.y + (this.P.y - e.y) / d * R; }
+      if (!this.canStand(this.P.x, this.P.y, this.P.x, this.P.y)) [this.P.x, this.P.y] = this.nearestStand(this.P.x, this.P.y);
+    }
+    this.inv.pay(next.cost);
+    if (next.slots) { const old = e.slots || []; e.slots = Array(next.slots).fill(null).map((_, i) => old[i] || null); }
+    this.burst(e.x, e.y - 20, ['#ffd27a', '#c7a46a', '#fff1c9'], 22);
+    this.done.upgrade = true; this.addXp(XP.craftPerLvl * 6);
+    this.ui.toast(`${next.n} hazır!`); this.ui.vibrate(40); this.ui.changed();
     return true;
   }
 
@@ -210,7 +229,7 @@ export class Game {
     for (const k of ['shield', 'body']) { const s = this.eq[k]; if (s && s.d !== undefined && --s.d <= 0) { delete this.eq[k]; this.st = sumStats(this.eq); this.ui.toast(`${ITEMS[s.k].n} parçalandı`); } }
     return dmg;
   }
-  /** Can the player stand at (x,y), coming from (fx,fy)? Land only, no solid objects, no climbing cliffs except on ramps. */
+  /** Can the player stand at (x,y), coming from (fx,fy)? Land only, no solid objects, no rocky crags. */
   canStand(x, y, fx = this.P.x, fy = this.P.y) {
     const W = this.W, r = this.P.r * .75;
     for (const [cx, cy] of [[x - r, y - r], [x + r, y - r], [x - r, y + r], [x + r, y + r]]) {
@@ -249,8 +268,12 @@ export class Game {
     const sp = Math.hypot(P.vx, P.vy); P.moving = sp > 14;
     if (im > .15) { P.fx = ix / im; P.fy = iy / im; }
     if (P.moving) P.walk += dt * sp * .09;
-    const nx = P.x + P.vx * dt; if (this.canStand(nx, P.y)) P.x = nx; else P.vx *= .3;
-    const ny = P.y + P.vy * dt; if (this.canStand(P.x, ny)) P.y = ny; else P.vy *= .3;
+    // hills: walking uphill is slower, downhill a little faster
+    const e0 = W.elevAt(P.x, P.y), look = .06, e1 = W.elevAt(P.x + P.vx * look, P.y + P.vy * look);
+    const run = Math.max(1, Math.hypot(P.vx, P.vy) * look) / T, climb = (e1 - e0) / run;
+    P.slope = clamp(1 - climb * 2.4, .6, 1.12);
+    const nx = P.x + P.vx * dt * P.slope; if (this.canStand(nx, P.y)) P.x = nx; else P.vx *= .3;
+    const ny = P.y + P.vy * dt * P.slope; if (this.canStand(P.x, ny)) P.y = ny; else P.vy *= .3;
 
     // clock
     S.time += dt / DAY;
@@ -331,7 +354,7 @@ export class Game {
       if (o.cat === 'res' && !o.alive) return;
       const sc = this.scoreOf(o, o.cat === 'res' ? 22 : 24); if (sc === null) return;
       let t;
-      if (o.cat === 'ent') t = { type: 'ent', o, lbl: STRUCT[o.k].label(o, this), r: STRUCT[o.k].r || 6 };
+      if (o.cat === 'ent') t = { type: 'ent', o, lbl: STRUCT[o.k].label(o, this), r: W.radius(o) || 6 };
       else {
         const d = RES[o.k];
         if (d.gather) t = { type: 'gather', o, lbl: d.label, r: d.r };
@@ -547,7 +570,7 @@ export class Game {
   hostileAI(a, def, dt) {
     const P = this.P, dx = P.x - a.x, dy = P.y - a.y, d = Math.hypot(dx, dy) || 1;
     const scared = this.W.ents.some(e => e.k === 'fire' && e.fuel > 0 && Math.hypot(e.x - a.x, e.y - a.y) < 150);
-    const canSee = d < def.aggro && !scared && !this.dead && this.W.lvlAt(a.x, a.y) === this.W.lvlAt(P.x, P.y);
+    const canSee = d < def.aggro && !scared && !this.dead;
     a.t -= dt;
     switch (a.st) {
       case 'wind':
@@ -621,7 +644,7 @@ export class Game {
     if ((r.lvl || 1) > this.level) { this.ui.toast(`Bunun için ${r.lvl}. seviye gerekli`); return false; }
     if (!this.inv.canAfford(r.cost)) return false;
     if (r.place) {
-      const spot = this.findBuildSpot(STRUCT[r.place].r || 8);
+      const R0 = STRUCT[r.place].r, spot = this.findBuildSpot((typeof R0 === 'function' ? R0({ lvl: 1 }) : R0) || 8);
       if (!spot) { this.ui.toast('Burası uygun değil, açık bir yere geç'); return false; }
       this.inv.pay(r.cost);
       const e = this.W.addEnt(r.place, spot[0], spot[1]);
@@ -644,8 +667,8 @@ export class Game {
     for (const [dx, dy] of cands) {
       const x = P.x + dx, y = P.y + dy;
       if (!W.landAt(x, y) || !W.landAt(x - rad, y) || !W.landAt(x + rad, y)) continue;
-      const L = W.lvlAt(P.x, P.y);
-      if ([[x, y], [x - rad, y], [x + rad, y], [x, y - rad], [x, y + rad]].some(([a, b]) => W.lvlAt(a, b) !== L || W.rampAt(a, b))) continue;
+      const m = rad + 14;                                   // keep rocky crags well clear of the footprint and the roof
+      if ([[0, 0], [0, -m - 16], ...DIRS8.map(([u, v]) => [u * m, v * m])].some(([a, b]) => W.cragAt(x + a, y + b))) continue;
       if ((x - P.x) ** 2 + (y - P.y) ** 2 < (rad + P.r + 1) ** 2) continue;
       let clear = true;
       W.near(x, y, 40, o => { if (W.solid(o) && Math.hypot(o.x - x, o.y - y) < W.radius(o) + rad + 4) clear = false; });

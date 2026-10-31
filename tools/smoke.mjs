@@ -1,7 +1,7 @@
 // Headless smoke test: runs the real game logic (and one render pass with a stub canvas).
 // Usage: node tools/smoke.mjs        Exit code 1 on any failed check.
 import { Game, levelOf } from '../js/game.js';
-import { T, TILE, COOK_TIME, BURN_TIME, isSeaTile } from '../js/config.js';
+import { T, TILE, COOK_TIME, BURN_TIME, SAVE_VERSION as SAVE_V, isSeaTile } from '../js/config.js';
 import { ITEMS } from '../js/data/items.js';
 import { RECIPES } from '../js/data/recipes.js';
 import { ICON } from '../js/data/icons.js';
@@ -12,7 +12,7 @@ import { migrate } from '../js/save.js';
 let fails = 0;
 const ok = (cond, msg) => { console.log(`${cond ? '  ok ' : 'FAIL '} ${msg}`); if (!cond) fails++; };
 const log = [];
-const ui = { toast: m => log.push(m), bump() {}, changed() {}, vibrate() {}, openChest() { log.push('openChest'); }, openFire() { log.push('openFire'); }, over() { log.push('over'); }, levelUp(l, u) { log.push(`level${l}:${u.join(',')}`); }, sleep(d) { log.push(`sleep${d}`); } };
+const ui = { toast: m => log.push(m), bump() {}, changed() {}, vibrate() {}, openChest() { log.push('openChest'); }, openFire() { log.push('openFire'); }, openHome() { log.push('openHome'); }, over() { log.push('over'); }, levelUp(l, u) { log.push(`level${l}:${u.join(',')}`); }, sleep(d) { log.push(`sleep${d}`); } };
 const inp = { jx: 0, jy: 0, act: false, actCd: 0, axis() { return { x: this.jx, y: this.jy }; } };
 const run = (G, sec, dt = 1 / 60) => { for (let t = 0; t < sec; t += dt) { if (G.dead) break; G.update(dt, inp); } };
 const look = G => { G.action = G.findAction(); return G.action; };
@@ -159,35 +159,42 @@ ok(G.craft('hut'), 'build hut'); const hut = W.ents.find(e => e.k === 'hut'); ok
 let near = false; for (const [dx, dy] of [[0, 34], [0, -34], [34, 0], [-34, 0], [0, 44]]) { goTo(G, hut.x + dx, hut.y + dy); if (G.action?.o === hut) { near = true; break; } }
 ok(near, 'button targets the hut');
 G.S.time = .3; ok(G.action.lbl === 'Kulübe', 'daytime label: Kulübe');
-press(G); ok(G.S.time === .3, 'cannot sleep at noon');
+press(G); ok(G.S.time === .3 && log.includes('openHome'), 'at noon the button opens the home screen instead of sleeping');
 G.S.time = .75; look(G); ok(G.action.lbl === 'Uyu', 'evening label: Uyu');
 const day0 = G.S.day, xp0 = G.S.xp; G.S.hp = 40; press(G);
 ok(G.S.day === day0 + 1 && G.S.time === .06 && G.S.hp === 80 && log.includes(`sleep${day0 + 1}`) && G.S.xp > xp0, 'sleeping skips to morning, heals, gives XP');
+// upgrade to Baraka
+G.inv.add('nail', 12); G.inv.add('wood', 25); G.inv.add('stone', 8); G.inv.add('rope', 4);
+const lvlSave = G.S.xp; G.S.xp = 0;
+ok(!G.upgradeHome(hut) && hut.lvl === 1, 'Baraka needs level 5');
+G.S.xp = lvlSave;
+ok(G.upgradeHome(hut) && hut.lvl === 2 && hut.slots?.length === 12 && W.radius(hut) === 26, 'upgrade hut → Baraka (12-slot store, bigger)');
+ok(G.inv.count('nail') === 0, 'upgrade used the nails');
+ok(G.canStand(G.P.x, G.P.y, G.P.x, G.P.y), 'player pushed out of the bigger footprint');
+G.S.time = .8; G.S.hp = 20; G.sleep(hut); ok(G.S.hp === 90, 'Baraka sleep heals 70');
 const bagItems = G.inv.used(); G.P.x += 200; G.S.hp = .001; G.S.hunger = 0; G.S.thirst = 0; G.update(1 / 60, inp);
 ok(!G.dead && G.S.hp === 60 && Math.hypot(G.P.x - hut.x, G.P.y - hut.y) < 80, 'death respawns at the hut');
 ok(G.inv.used() === 0 && W.ents.filter(e => e.k === 'drop').length >= bagItems, 'bag items stay where you fell');
 for (const e of W.ents.filter(e => e.k === 'drop')) G.pickupDrop(e);
 ok(G.inv.used() === bagItems, 'got everything back');
 
-// ---------- elevation: plateaus, cliffs, ramps ----------
+// ---------- elevation: smooth hills + rare crags ----------
 {
-  const M = 128; let l1 = 0, l2 = 0, ramps = 0;
-  for (let i = 0; i < M * M; i++) { if (W.lvl[i] === 1) l1++; if (W.lvl[i] === 2) l2++; if (W.ramp[i]) ramps++; }
-  ok(l1 > 100 && l2 > 10 && ramps > 0, `plateaus exist (L1 ${l1}, L2 ${l2}, ramps ${ramps})`);
-  ok(W.lvl[W.spawn[1] * M + W.spawn[0]] === 0, 'spawn is on ground level');
-  let cliffT = null, rampT = null;
-  for (let y = 2; y < M - 2 && !(cliffT && rampT); y++) for (let x = 2; x < M - 2; x++) {
-    const i = y * M + x, b = i + M;
-    if (!cliffT && W.lvl[i] === 1 && !W.ramp[i] && W.lvl[b] === 0 && W.at(x, y + 1) === TILE.GRASS && !W.ramp[i - 1] && !W.ramp[i + 1]) cliffT = [x, y];
-    if (!rampT && W.ramp[i] && W.lvl[b] === W.lvl[i] - 1) rampT = [x, y];
-  }
-  const G6 = new Game(ui); G6.newGame(12345);
-  const below = ([x, y]) => [(x + .5) * T, (y + 1.5) * T], inside = ([x, y]) => [(x + .5) * T, (y + .5) * T];
-  const [bx, by] = below(cliffT), [ix, iy] = inside(cliffT);
-  ok(!G6.W.canStep(bx, by, ix, iy), 'cannot climb a cliff');
-  const [rbx, rby] = below(rampT), [rix, riy] = inside(rampT);
-  ok(G6.W.canStep(rbx, rby, rix, riy), 'can walk up a ramp');
-  ok(G6.W.res.every(o => !G6.W.ramp[Math.floor(o.y / T) * M + Math.floor(o.x / T)]), 'no resources block ramps');
+  const M = 128; let crags = 0, land = 0, high = 0;
+  for (let i = 0; i < M * M; i++) { if (W.crag[i]) crags++; if (W.tiles[i] === TILE.GRASS || W.tiles[i] === TILE.FOREST) { land++; if (W.elev[i] > .6) high++; } }
+  ok(high > land * .05 && crags > 0 && crags < land * .04, `hills and a few crags (high ${high}/${land}, crags ${crags})`);
+  ok(!W.crag[W.spawn[1] * M + W.spawn[0]], 'spawn is not on a crag');
+  let maxStep = 0; for (let y = 1; y < M - 1; y++) for (let x = 1; x < M - 1; x++) { const i = y * M + x; if (W.tiles[i] < TILE.SAND || W.tiles[i] === TILE.POND) continue; maxStep = Math.max(maxStep, Math.abs(W.elev[i] - W.elev[i + 1]), Math.abs(W.elev[i] - W.elev[i + M])); }
+  ok(maxStep < .2, `slopes are gentle (max step ${maxStep.toFixed(3)})`);
+  const ci = W.crag.findIndex(v => v), cx = (ci % M + .5) * T, cy = ((ci / M | 0) + .5) * T;
+  ok(!W.canStep(cx + 40, cy, cx, cy), 'crags cannot be walked on');
+  ok(W.res.every(o => !W.crag[Math.floor(o.y / T) * M + Math.floor(o.x / T)]), 'no resources on crags');
+  // walking uphill is slower than downhill
+  const G6 = new Game(ui); G6.newGame(12345); G6.animalTimer = 1e9; G6.W.animals = [];
+  let hill = null;
+  for (let y = 5; y < M - 5 && !hill; y++) for (let x = 5; x < M - 5; x++) { const i = y * M + x; if (W.elev[i + 2] - W.elev[i - 2] > .08 && [-3, -2, -1, 0, 1, 2, 3].every(d => !W.crag[i + d] && W.tiles[i + d] >= TILE.SAND && W.tiles[i + d] !== TILE.POND) && G6.canStand((x - 2.5) * T, (y + .5) * T, (x - 2.5) * T, (y + .5) * T)) { hill = [x, y]; break; } }
+  const walk = dir => { G6.P.x = (hill[0] + .5) * T; G6.P.y = (hill[1] + .5) * T; for (const o of G6.W.res) if (Math.abs(o.y - G6.P.y) < 40 && Math.abs(o.x - G6.P.x) < 120) o.alive = 0; G6.P.vx = G6.P.vy = 0; const x0 = G6.P.x; inp.jx = dir; for (let i = 0; i < 20; i++) G6.update(1 / 60, inp); inp.jx = 0; return Math.abs(G6.P.x - x0); };
+  if (hill) { const up = walk(1), down = walk(-1); ok(up < down, `uphill slower than downhill (${up.toFixed(1)} < ${down.toFixed(1)})`); }
 }
 
 // ---------- hostile boar ----------
@@ -235,7 +242,7 @@ const G3 = Game.fromSave(d, ui);
 ok(G3.inv.count('cfish') === G.inv.count('cfish') && G3.eq.body?.k === 'vest' && G3.st.warm === .6 && !G3.W.res[W.res.indexOf(tree)].alive, 'save/load keeps bag, equipment, stats, felled tree');
 ok(G3.S.xp === G.S.xp && G3.home === G.home, 'save/load keeps XP and home');
 const v4 = { ...d, v: 4, hand: 2, s: { ...d.s, xp: undefined } }; delete v4.eq; delete v4.home; const m = migrate(v4);
-ok(m && m.v === 7 && !('hand' in m) && m.s.xp > 0 && m.res.length === 0 && Game.fromSave(m, ui).eq, 'v4 save migrates to v7 (XP estimated, resources reset)');
+ok(m && m.v === SAVE_V && !('hand' in m) && m.s.xp > 0 && m.res.length === 0 && Game.fromSave(m, ui).eq, 'v4 save migrates to latest (XP estimated, resources reset)');
 
 // ---------- long run: day/night, starvation → death ----------
 const G4 = new Game(ui); G4.newGame(99); log.length = 0;

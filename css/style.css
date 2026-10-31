@@ -62,11 +62,11 @@ button:focus-visible{outline:2px solid var(--sun);outline-offset:2px}
 #toast.show{opacity:1;transform:translate(-50%,0)}
 
 /* sheets & screens */
-#bag,#craft,#chest,#fire{position:fixed;touch-action:pan-y;left:0;right:0;bottom:0;z-index:6;background:var(--panel-solid);border-top:1px solid var(--line);border-radius:20px 20px 0 0;
+#bag,#craft,#chest,#fire,#home{position:fixed;touch-action:pan-y;left:0;right:0;bottom:0;z-index:6;background:var(--panel-solid);border-top:1px solid var(--line);border-radius:20px 20px 0 0;
   padding:16px max(16px,env(safe-area-inset-right,0px)) calc(env(safe-area-inset-bottom,0px) + 16px) max(16px,env(safe-area-inset-left,0px));
   display:grid;gap:10px;max-height:80%;overflow:auto}
-#bag h2,#craft h2,#chest h2,#fire h2{margin:0;font-size:18px;display:flex;justify-content:space-between;align-items:center}
-#bag h2>button,#craft h2 button,#chest h2 button,#fire h2 button{font-size:14px;color:var(--muted);padding:6px 4px}
+#bag h2,#craft h2,#chest h2,#fire h2,#home h2{margin:0;font-size:18px;display:flex;justify-content:space-between;align-items:center}
+#bag h2>button,#craft h2 button,#chest h2 button,#fire h2 button,#home h2 button{font-size:14px;color:var(--muted);padding:6px 4px}
 .rec{display:grid;grid-template-columns:1fr auto;gap:4px 12px;align-items:center;padding:12px;border-radius:14px;background:rgba(255,255,255,.05);border:1px solid var(--line)}
 .rec .nm{font-weight:700;font-size:16px;display:flex;align-items:center;gap:8px}
 .rec .cost>button{display:inline-flex;align-items:center;gap:4px}
@@ -162,7 +162,7 @@ button:focus-visible{outline:2px solid var(--sun);outline-offset:2px}
 
 /* bag sheet: tabs, equipment doll, drag & drop */
 #bag,#craft{max-height:88%}
-#tabInv,#recs{display:grid;gap:10px}
+#tabInv{display:grid;gap:10px}
 .doll{display:grid;grid-template-columns:72px 1fr 72px;gap:10px;align-items:start;padding:8px;border-radius:16px;
   background:radial-gradient(circle at 50% 40%,rgba(255,154,60,.12),rgba(255,255,255,.03) 70%);border:1px solid var(--line)}
 .eqcol{display:grid;gap:8px}
@@ -199,3 +199,26 @@ button:focus-visible{outline:2px solid var(--sun);outline-offset:2px}
 #fade{position:fixed;inset:0;z-index:11;background:#06101c;color:#ffe08a;display:grid;place-items:center;font-size:30px;font-weight:800;opacity:0;pointer-events:none}
 #fade.go{animation:sleepfade 2.1s ease forwards}
 @keyframes sleepfade{0%{opacity:0}25%{opacity:1}70%{opacity:1}100%{opacity:0}}
+
+/* craft grid */
+#recs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.ctile{position:relative;display:grid;justify-items:center;align-content:start;gap:4px;padding:10px 4px 8px;border-radius:14px;
+  background:rgba(255,255,255,.05);border:1px solid var(--line);min-width:0}
+.ctile .ico{width:34px;height:34px}
+.ctile .cn{font-size:11px;line-height:1.15;text-align:center;color:var(--fg);overflow-wrap:anywhere}
+.ctile.sel{border-color:var(--sun);box-shadow:0 0 0 2px var(--sun) inset}
+.ctile.locked .ico,.ctile.locked .cn{opacity:.35}
+.ctile .lk{position:absolute;top:4px;right:4px;font-size:9px;font-weight:800;background:rgba(0,0,0,.5);color:#ffe08a;border-radius:6px;padding:2px 4px}
+.ctile .ok{position:absolute;top:6px;right:6px;width:8px;height:8px;border-radius:50%;background:#8fd16a}
+#craftDetail,#upgradeBox{position:sticky;bottom:0;display:grid;gap:8px;padding:12px;background:var(--panel-solid);border-color:rgba(255,154,60,.4)}
+#craftDetail .th,#upgradeBox .th{cursor:pointer}
+#craftDetail p,#upgradeBox p,#home>p{margin:0}
+#craftDetail .cost,#upgradeBox .cost{display:flex;gap:6px;flex-wrap:wrap}
+#craftDetail .cost>button,#upgradeBox .cost>button{display:inline-flex;align-items:center;gap:4px;font-size:12px;padding:4px 8px;border-radius:8px;background:rgba(255,255,255,.07);font-variant-numeric:tabular-nums}
+#craftDetail .cost>button.no,#upgradeBox .cost>button.no{color:#ff9a9a}
+#craftDetail .cost .ico,#upgradeBox .cost .ico{width:18px;height:18px}
+#craftDetail .mk,#upgradeBox .mk{background:var(--sun);color:var(--sun-ink);font-weight:800;border-radius:12px;padding:13px 16px;font-size:15px}
+#craftDetail .mk:disabled,#upgradeBox .mk:disabled{background:rgba(255,255,255,.1);color:var(--muted)}
+#upgradeBox{position:static}
+#homeStore{display:grid;gap:8px}
+#sleepBtn:disabled{opacity:.55}

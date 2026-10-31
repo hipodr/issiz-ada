@@ -13,7 +13,7 @@ js/data/              DATA-DRIVEN CONTENT — most new features start here
   items.js            carryable items (food, tools w/ durability, canteen…)
   recipes.js          crafting list (out → bag, place → structure)
   resources.js        harvestable world objects + their draw()
-  structures.js       placed things saved in full (fire, chest, drop) + draw()/interact()
+  structures.js       placed things saved in full (fire, chest, hut, wreck, drop) + draw()/interact(); HOME levels
   animals.js          species + draw(); AI lives in game.js updateAnimals()
   icons.js            inline SVG per item/recipe id
 js/world.js           island generation + spatial grid (near/blocked/addEnt)
@@ -35,24 +35,32 @@ tools/smoke.mjs       headless test of the real game logic + one render pass
 - No hotbar, no tool selection. Equipment ("paper doll") lives in the bag sheet: slots in `data/equipment.js`
   (head/body/feet/weapon/shield), item `equip: { slot, stats }`, totals in `G.st` (speed, armor, warm, thirst, melee).
   Weapon used for attacks = equipped one, else strongest `melee` item in the bag.
-- Bag button is top-right; the bag sheet has tabs Çanta (doll + 16 slots + details) and Üretim (recipes grouped by `cat`).
+- Bag button is top-right; the bag sheet shows the doll + 16 slots + details.
   Drag & drop: bag↔bag (swap/merge) and bag↔equipment. Tap = details (Ye / İç / Kuşan / Çıkar / Yere bırak).
 - Sopa/Mızrak are weapons only. Campfire opens its own sheet (wood, 3 timed cook slots, burning). Fire sheet doesn't pause.
 - `G.hurt(n)` applies armor; ready for hostile animals.
-- Craft is its own sheet behind the hammer button (top-right, left of the bag). Recipes have `lvl`; locked ones show "Sv N".
+- Craft is its own sheet behind the hammer button (top-right, left of the bag): a compact 4-column ICON GRID (icon + name),
+  ordered by `SORTED_RECIPES` (level, then file order → Kazma, Balta, Sopa, Kamp ateşi first). Tap a tile → `#craftDetail`
+  (desc, cost chips, Yap). Locked tiles show "Sv N", affordable ones a green dot.
 - XP: amounts in `config.js XP`, curve `levelOf(xp)` in game.js (XP_STEP × level). `G.addXp(n)` → `ui.levelUp(lvl, unlockedNames)`.
-- Hut (`structures.js hut`, lvl 3): Uyu at evening/night skips to morning (`G.sleep`); the hut is `G.home`.
+- Hut (`structures.js hut`, recipe lvl 3): Uyu at evening/night skips to morning (`G.sleep`); `G.home` = the hut's id.
+  Daytime press → `ui.openHome(e)` (home sheet: sleep button, upgrade box, storage). Levels live in `HOME` (structures.js):
+  1 Kulübe → 2 Baraka (player lvl 5, wood 25 / nail 12 / stone 8 / rope 4): bigger r, +70 sleep heal, 12-slot store, lantern light.
+  `G.upgradeHome(e)` bumps `e.lvl`; r/warm/light/sleepHp are read from HOME[e.lvl-1]. Add a level = append to HOME + draw branch.
   Dying with a home → `G.respawn()` at the hut, bag dropped where you fell (equipment kept). No home → game over.
-- Elevation: `W.lvl` (0..2 plateaus) + `W.ramp`; movement only via `W.canStep(from,to)` (same level, or ±1 through a ramp).
-  Generated in `World.genElevation`; renderer draws `W.cliff` masks (south rock faces, side edges) and ramps as stairs.
-  Plateaus have extra rocks. Build spots must be one level and not on a ramp.
+- Elevation (owner: "smooth hills, only a few impassable rocky spots"): `W.elev` Float32 0..1 per tile, `W.elevAt(x,y)` bilinear.
+  Hills are walkable everywhere; walking uphill is slower (`P.slope`). `W.crag` = rare impassable boulder fields on the
+  highest ground (~1% of land, small clusters); `W.canStep` only rejects crags. No resources/spawn/builds on or next to crags.
+  Mountain tops: more rocks, stony ground, fewer plants. Generated in `World.genElevation` (coast fade + blur keeps slopes gentle).
+- Ground render: pixel texture at CELL=2 world units (16×16 px per tile), built lazily per CHUNK=8 tiles (`buildChunk`),
+  noise-jittered borders, NW hillshade from `elev`. Water pixels are transparent; animated water is drawn underneath.
 - Boar (`animals.js`, `ai: 'hostile'`, from day 2): winds up ("!"), charges, `G.hurt(dmg, x, y)` (armor, knockback, shake),
   rests (vulnerable), staggers when hit, avoids lit fires (150 units). XP per kill from `def.xp`.
 - Shipwreck crates (`structures.js wreck`, loot in `data/loot.js`): 1 at start, 1–2 each morning (`G.onNewDay`), max 3,
   edge-of-screen arrows point to them. Loot adds cloth, nails (future house upgrade), bandages (`heal`).
 
 ## Rules of the codebase
-- `game.js` never touches the DOM. It talks to the screen only via `this.ui` (toast, bump, changed, vibrate, openChest, over).
+- `game.js` never touches the DOM. It talks to the screen only via `this.ui` (toast, bump, changed, vibrate, openChest, openFire, openHome, levelUp, sleep, over).
 - Renderer only reads state.
 - Resources are regenerated from the seed on load; only their state is saved (index-stable → don't reorder spawn tables casually).
   Structures/drops are saved in full.
@@ -76,7 +84,9 @@ tools/smoke.mjs       headless test of the real game logic + one render pass
 2. ✅ Fishing (bite mini-game), bow + arrows + rabbits, timed cooking, raw-food sickness, canteen
 2b. ✅ Fire screen, tooltips
 2c. ✅ One smart button with auto-tool, equipment doll + stats + drag & drop, gear (hat, vest, shoes, shield, spear), fewer resources
-3. ✅ Hut + sleep + respawn, XP/levels with recipe gating, separate craft sheet. Next: hut → house upgrade (`e.lvl`), energy bar
-4. ✅ Plateaus/cliffs/ramps, boars, shipwreck crates, bandage.
-5. NEXT ideas: hut → house upgrade with nails (`e.lvl`), iron/ore on plateaus, energy bar, weather (rain/storm puts out fires), farming, sounds, minimap
+3. ✅ Hut + sleep + respawn, XP/levels with recipe gating, separate craft sheet
+4. ✅ Boars, shipwreck crates, bandage
+5. ✅ v8: smooth hills + few crags (replaced plateaus/ramps — owner found them wall-like), detailed pixel ground,
+   craft icon grid by level, home sheet + Kulübe → Baraka upgrade
+6. NEXT ideas: 3rd home level (Ev), iron/ore on mountain tops, energy bar, weather (rain/storm puts out fires), farming, sounds, minimap
 Goal is endless survival with a day record (no escape ending).
