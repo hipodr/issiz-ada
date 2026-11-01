@@ -3,7 +3,7 @@
 // Output: three.js scene rendered every frame; ?debug shows fps; window.__DEMO for tests
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { buildIsland, TOP } from './island.js';
+import { buildIsland } from './island.js';
 import { makeWater } from './water.js';
 import { loadHero } from './hero.js';
 import { makeInput } from './input.js';
@@ -26,18 +26,19 @@ const camera = new THREE.PerspectiveCamera(42, 1, .1, 400);
 addEventListener('resize', resize); resize();
 
 const loader = new GLTFLoader();
-const island = await buildIsland(loader, +q.get('seed') || 11);
+const island = await buildIsland(loader, +q.get('seed') || 11, q.has('lite'));
 scene.add(island.group);
 const water = makeWater(island.mask, island.span, sunDir); scene.add(water);
 
 // ship anchored in the bay + the barracks of our first camp
 const loadModel = url => new Promise((res, rej) => loader.load(url, g => { g.scene.traverse(o => { if (o.isMesh) { o.castShadow = o.receiveShadow = true; } }); res(g.scene); }, undefined, rej));
 const ship = await loadModel('assets/hex/unit-ship-large.glb'); ship.scale.setScalar(22); ship.position.copy(island.shipPos); ship.position.y = -.3; ship.rotation.y = 1.25; scene.add(ship);
-const barracks = await loadModel('assets/buildings/barracks.glb'); barracks.scale.setScalar(6.5); barracks.position.copy(island.camp); barracks.rotation.y = .25; scene.add(barracks);
+const barracks = await loadModel('assets/buildings/barracks.glb'); barracks.scale.setScalar(6.5); barracks.position.copy(island.camp); barracks.position.y -= .15; barracks.rotation.y = .25; scene.add(barracks);
 island.block(island.camp.x, island.camp.z, 3.6);
 
 const hero = await loadHero(loader); hero.obj.position.copy(island.spawn); scene.add(hero.obj);
 const input = makeInput($('cv'), $('stick'), $('knob'));
+let grid = true; $('grid').onclick = () => { grid = !grid; island.material.grid(grid ? .8 : 0); $('grid').classList.toggle('off', !grid); };
 let dist = 15;
 input.onPinch = f => { dist = Math.max(7, Math.min(40, dist / f)); };
 $('busy').hidden = true;
@@ -47,7 +48,7 @@ let last = performance.now(), frames = 0, fpsT = 0, slowT = 0;
 function frame(now) {
   const dt = Math.min(.05, (now - last) / 1000); last = now; const t = now / 1000;
   hero.update(input.get(), dt, island.walkable);
-  const p = hero.obj.position;
+  const p = hero.obj.position; p.y += (island.heightAt(p.x, p.z) - p.y) * Math.min(1, dt * 20);
   camTarget.lerp(p, 1 - Math.exp(-dt * 6));
   camera.position.set(camTarget.x, camTarget.y + dist * .82, camTarget.z + dist * .62);
   camera.lookAt(camTarget.x, camTarget.y + .6, camTarget.z);

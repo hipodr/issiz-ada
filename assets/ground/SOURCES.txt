@@ -1,0 +1,2 @@
+ambientCG (CC0): 0=Grass004, 1=Ground037, 2=Ground054, 3=Ground081, 4=PavingStones150, 5=Rock029, 6=Rock030, 7=Rock058, 8=Rocks022
+_c = Color 1024, _n = NormalGL 512

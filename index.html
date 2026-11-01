@@ -19,6 +19,8 @@ html,body{height:100%;margin:0;background:#2a5d78;color:#f6f0e1;font:600 14px/1.
 #stick{position:fixed;width:120px;height:120px;margin:-60px 0 0 -60px;border-radius:50%;border:2px solid rgba(255,255,255,.4);background:radial-gradient(circle,rgba(255,255,255,.05),rgba(255,255,255,.15));pointer-events:none;display:none}
 #knob{position:absolute;left:50%;top:50%;width:52px;height:52px;margin:-26px 0 0 -26px;border-radius:50%;background:rgba(255,255,255,.8);box-shadow:0 2px 8px rgba(0,0,0,.35)}
 #stick.run{border-color:#ffb347} #stick.run #knob{background:#ffb347}
+#grid{position:fixed;right:12px;top:calc(34px + env(safe-area-inset-top));padding:8px 12px;border:0;border-radius:12px;background:rgba(10,24,32,.6);color:#f6f0e1;font:inherit}
+#grid.off{opacity:.55}
 #busy{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);padding:12px 18px;border-radius:14px;background:rgba(10,24,32,.75)}
 </style>
 <script type="importmap">{"imports":{"three":"./vendor/three/three.module.min.js","three/addons/":"./vendor/three/addons/"}}</script>
@@ -29,7 +31,8 @@ html,body{height:100%;margin:0;background:#2a5d78;color:#f6f0e1;font:600 14px/1.
 <div id="fps"></div>
 <div id="stick"><div id="knob"></div></div>
 <div id="hint">Ekranın sol tarafına dokunup sürükle: yürü · sonuna kadar it: koş · iki parmak: yakınlaştır</div>
+<button id="grid">⬡ Altıgen</button>
 <div id="busy">Ada yükleniyor…</div>
-<script type="module" src="js/main.js?v=2"></script>
+<script type="module" src="js/main.js?v=4"></script>
 </body>
 </html>
