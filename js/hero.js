@@ -1,4 +1,4 @@
-// The captain on the island map: animated model (Quaternius Adventurer) + movement.
+// The captain on the island map: animated model (captain.glb = user's Avaturn avatar with Quaternius clips retargeted) + movement.
 // Input : loader, stick input {x, y} (−1..1, screen axes), dt, island.walkable
 // Process: speed from stick length (walk / run), turn smoothly towards the stick direction, slide along blocked tiles,
 //          cross-fade Idle ↔ Walk ↔ Run with the speed
@@ -7,8 +7,8 @@ import * as THREE from 'three';
 
 export const WALK = 1.6, RUN = 3.5;                // m/s
 
-export async function loadHero(loader, height = 1.75) {
-  const gl = await new Promise((res, rej) => loader.load('assets/hero/adventurer.glb', res, undefined, rej));
+export async function loadHero(loader, url = 'assets/hero/captain.glb', height = 1.78) {
+  const gl = await new Promise((res, rej) => loader.load(url, res, undefined, rej));
   const model = gl.scene;
   model.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = false; o.frustumCulled = false; } });
   const box = new THREE.Box3().setFromObject(model), h = box.max.y - box.min.y;

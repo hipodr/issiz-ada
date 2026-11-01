@@ -38,7 +38,7 @@ const ship = await loadModel('assets/hex/unit-ship-large.glb'); ship.scale.setSc
 const barracks = await loadModel('assets/buildings/barracks.glb'); barracks.scale.setScalar(6.5); barracks.position.copy(island.camp); barracks.position.y -= .15; barracks.rotation.y = .25; scene.add(barracks);
 island.block(island.camp.x, island.camp.z, 3.6);
 
-const hero = await loadHero(loader); hero.obj.position.copy(island.spawn); scene.add(hero.obj);
+const hero = await loadHero(loader, q.get('hero') === 'adv' ? 'assets/hero/adventurer.glb' : 'assets/hero/captain.glb'); hero.obj.position.copy(island.spawn); scene.add(hero.obj);
 // captain silhouette: parts hidden behind trees / buildings are drawn again as a soft gold shape (layer 1 pass)
 hero.obj.traverse(o => o.layers.set(1)); sun.shadow.camera.layers.enable(1);
 scene.traverse(o => { if (o.isLight) o.layers.enable(1); });   // captain lives on layer 1 only (still casts a shadow)
