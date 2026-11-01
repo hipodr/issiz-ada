@@ -25,6 +25,12 @@ js/input.js           touch joystick, action button, keyboard
 js/save.js            localStorage save with version + MIGRATIONS
 js/main.js            boot, loop, menu/play/over state
 tools/smoke.mjs       headless test of the real game logic + one render pass
+map.html              NEW MAP (step 1 of the rebuild): empty island viewer, linked from the menu
+js/map/terrain.js     island generator v2 (256² cells × 16 units): beaches/cliffs, mountain, river+delta, reef/lagoon,
+                      clearings, cave, A* trail, moisture → packTerrain() = 3 RGBA textures
+js/map/gl.js          WebGL1 ground shader (materials, sun/moon, sea, river, cave) + lighting(tod)
+js/map/viewer.js      pan/pinch/wheel, fly-to buttons, time slider, adaptive resolution; window.__MAP for tests
+tools/maptest.mjs     headless checks of the generator (+ --ppm preview)
 ```
 
 ## Controls (owner's design — keep it this way)
@@ -81,6 +87,16 @@ tools/smoke.mjs       headless test of the real game logic + one render pass
 - Browser: serve the folder (`python3 -m http.server`) and open `index.html?debug`; `window.__G()` returns `{ G, ui, start, Game }`.
   Headless Chrome via Python Playwright works in the dev sandbox (`/usr/bin/google-chrome`), viewport 400×820.
 
+## New map (in progress — owner wants to go step by step: map first, then characters, then objects)
+- Owner chose GPU rendering. The old game still uses world.js + the canvas renderer; the new map is separate until approved.
+- Terrain fields are smooth (bicubic lookup in the shader); detail comes from noise + cellular layers (grass tufts, rock slabs,
+  pebbles, flowers, coral) that only run when zoomed in (`fine`/`mid` factors) — keep it that way for phone GPUs.
+- Height is stored sign·√|h| so the water line has fine precision; a river bed is never "sea" (rivW mask).
+- Cave: `terrain.cave {x, y, ang}` (ang = downhill/opening direction). Future: underground map behind it.
+- Light: `lighting(tod)` sunrise ≈05:30, sunset ≈19:30, sun from the north side and never overhead (relief reads well).
+- Test: `node tools/maptest.mjs`; screenshots need Chrome with `--use-angle=swiftshader --enable-unsafe-swiftshader`
+  (software GL is ~15 fps; set the camera with `__MAP.flyTo(x, y, zoom, false)`).
+
 ## Roadmap (agreed with the owner)
 1. ✅ Bag 16 slots × 20, tool durability, rope, chest
 2. ✅ Fishing (bite mini-game), bow + arrows + rabbits, timed cooking, raw-food sickness, canteen
@@ -90,5 +106,6 @@ tools/smoke.mjs       headless test of the real game logic + one render pass
 4. ✅ Boars, shipwreck crates, bandage
 5. ✅ v8: smooth hills + few crags (replaced plateaus/ramps — owner found them wall-like), detailed pixel ground,
    craft icon grid by level, home sheet + Kulübe → Baraka upgrade
-6. NEXT ideas: 3rd home level (Ev), iron/ore on mountain tops, energy bar, weather (rain/storm puts out fires), farming, sounds, minimap
+6. IN PROGRESS: new realistic map (map.html) → then characters → then move objects/gameplay onto it
+7. Later ideas: underground map behind the cave, 3rd home level (Ev), iron/ore on mountain tops, energy bar, weather (rain/storm puts out fires), farming, sounds, minimap
 Goal is endless survival with a day record (no escape ending).
