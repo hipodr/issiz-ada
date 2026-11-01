@@ -1,9 +1,10 @@
 // The castaway: a small procedural 3D model (smooth ellipsoids on a skeleton) + procedural animation. No DOM/GL → testable.
 //
 // Model space: x = right, y = forward, z = up, units = world units (hero ≈ 32 tall).
-// Input : pose(state) with state = { phase (rad), speed (world u/s), time (s), torch (bool), wade (water depth, units) }
+// Input : pose(state) with state = { phase (rad), speed (world u/s), time (s), wade (water depth, units),
+//         light ('torch' | 'lantern' | null), tool (id in tools.js), act (action time 0..1 or null), fishing (line out) }
 // Output: one 4×4 matrix per bone (bone space → model space), grounded so the lower foot touches z = 0,
-//         + torch tip position in model space (for the flame and its light).
+//         + light position (torch flame / lantern), feet, and tool points (hands, tool tip, bow & crossbow string ends).
 //
 // Meshes: buildMeshes() → per bone { pos: Float32Array, nrm, col } triangles in bone space.
 
@@ -22,6 +23,9 @@ export const M4 = {
   apply(m, x, y, z) { return [m[0] * x + m[4] * y + m[8] * z + m[12], m[1] * x + m[5] * y + m[9] * z + m[13], m[2] * x + m[6] * y + m[10] * z + m[14]]; },
 };
 const chain = (...ms) => ms.reduce((a, b) => M4.mul(a, b));
+
+import { ellipsoid, cyl, box } from './geom.js';
+import { toolPose, TOOLS } from './tools.js';
 
 // ---------- palette ----------
 const hex = h => [parseInt(h.slice(1, 3), 16) / 255, parseInt(h.slice(3, 5), 16) / 255, parseInt(h.slice(5, 7), 16) / 255];
@@ -42,26 +46,14 @@ export const BONES = [
   ['armR', 1, [4.6, 0, 7.3]], ['foreR', 6, [0, 0, -5.9]],
   ['legL', 0, [-2.15, 0, -.5]], ['shinL', 8, [0, 0, -7.7]], ['footL', 9, [0, 0, -7.3]],
   ['legR', 0, [2.15, 0, -.5]], ['shinR', 11, [0, 0, -7.7]], ['footR', 12, [0, 0, -7.3]],
-  ['torch', 7, [0, .4, -5.7]],
+  ['torch', 5, [0, .4, -5.7]],                    // left hand (night)
+  ['tool', 7, [0, .35, -5.9]],                    // right-hand grip
+  ['toolL', 5, [0, .35, -5.9]],                   // left-hand grip (bow)
+  ['lantern', 0, [-4.4, .9, .6]],                 // hangs on the belt when both hands are busy
 ];
 export const BONE = Object.fromEntries(BONES.map((b, i) => [b[0], i]));
 
 // ---------- meshes ----------
-/** Ellipsoid triangles. keep(nx,ny,nz) filters by unit-sphere direction (for caps); color can be a function of it. */
-function ellipsoid(out, [cx, cy, cz], [rx, ry, rz], color, { seg = 12, ring = 8, keep = null } = {}) {
-  const P = (i, j) => { const th = i / seg * Math.PI * 2, ph = j / ring * Math.PI; return [Math.sin(ph) * Math.cos(th), Math.sin(ph) * Math.sin(th), Math.cos(ph)]; };
-  for (let j = 0; j < ring; j++) for (let i = 0; i < seg; i++) {
-    const q = [P(i, j), P(i + 1, j), P(i + 1, j + 1), P(i, j + 1)];
-    if (keep) { const m = q.reduce((a, v) => [a[0] + v[0] / 4, a[1] + v[1] / 4, a[2] + v[2] / 4], [0, 0, 0]); if (!keep(...m)) continue; }
-    for (const k of [0, 1, 2, 0, 2, 3]) {
-      const [ux, uy, uz] = q[k];
-      out.pos.push(cx + ux * rx, cy + uy * ry, cz + uz * rz);
-      const nx = ux / rx, ny = uy / ry, nz = uz / rz, l = Math.hypot(nx, ny, nz) || 1;
-      out.nrm.push(nx / l, ny / l, nz / l);
-      const c = typeof color === 'function' ? color(ux, uy, uz) : color; out.col.push(...c);
-    }
-  }
-}
 const mixc = (a, b, t) => a.map((v, i) => v + (b[i] - v) * t);
 
 export function buildMeshes() {
@@ -104,6 +96,10 @@ export function buildMeshes() {
   // torch (only drawn at night)
   E('torch', [0, 0, 2.5], [.55, .55, 4.6], COL.stick, { seg: 8, ring: 6 });
   E('torch', [0, 0, 6.3], [.95, .95, 1.4], COL.wrap, { seg: 8, ring: 6 });
+  const L = M[BONE.lantern];
+  cyl(L, [0, 0, 0], [0, 0, -1.2], .25, .25, COL.rope, 4);                                            // hook
+  box(L, [0, 0, -2.0], [1.1, 1.1, .3], [.22, .2, .18]); box(L, [0, 0, -5.2], [1.25, 1.25, .35], [.22, .2, .18]);
+  ellipsoid(L, [0, 0, -3.6], [1.0, 1.0, 1.4], [1.0, .86, .5], { seg: 8, ring: 6 });                   // glowing glass
   return M.map(m => ({ pos: new Float32Array(m.pos), nrm: new Float32Array(m.nrm), col: new Float32Array(m.col) }));
 }
 
@@ -141,18 +137,29 @@ export function pose(st) {
   R.spine = M4.mul(M4.RX(lean + breathe), M4.RZ(-S * .16 * walk));
   R.neck = M4.RX(-lean * .6);
   R.head = M4.mul(M4.RX(-lean * .4 + Math.sin(t * .5) * .03 * idle), M4.RZ(Math.sin(t * .37) * .12 * idle + S * .08 * walk));
-  // arms: swing opposite to the legs, elbows bend more when running; right arm holds the torch at night
+  // arms: swing opposite to the legs, elbows bend more when running
+  const arm = (pitch, out, sg) => M4.mul(M4.RX(pitch), M4.RY(sg * out));
   for (const [s, sg] of [['L', 1], ['R', -1]]) {
     const sw = -S * sg * armA;
-    R['arm' + s] = M4.mul(M4.RX(sw + .05), M4.RY(sg * (.1 + .04 * idle + .05 * run)));
+    R['arm' + s] = arm(sw + .05, .1 + .04 * idle + .05 * run, sg);
     R['fore' + s] = M4.RX(.25 + .25 * walk + 1.05 * run + Math.max(0, sw) * .5);
   }
-  if (st.torch) {
+  // tool: carry pose or action keyframes override the arms that hold it; a little walk swing stays
+  const tp = toolPose(st.tool || 'hand', st.act, st.fishing), P = tp.p, acting = st.act != null;
+  const swR = acting ? 0 : S * armA * .3, swL = acting ? 0 : -S * armA * .3;
+  if (tp.armR) { R.armR = arm(P.sR[0] + swR, P.sR[1], -1); R.foreR = M4.RX(P.eR); }
+  if (tp.armL) { R.armL = arm(P.sL[0] + swL, P.sL[1], 1); R.foreL = M4.RX(P.eL); }
+  const grip = w => M4.mul(M4.mul(M4.mul(M4.RX(-Math.PI / 2), M4.RX(w[0])), M4.RY(w[1])), M4.RZ(w[2]));
+  R.tool = grip(P.wR); R.toolL = grip(P.wL);
+  R.spine = M4.mul(M4.RX(lean + breathe + P.ln), M4.RZ(-S * .16 * walk + P.tw));
+  R.head = M4.mul(R.head, M4.RZ(-P.tw * .5));
+  // light: torch in the free left hand, else a lantern on the belt
+  if (st.light === 'torch' && !tp.armL) {
     const sw = S * .08 * walk;
-    R.armR = M4.mul(M4.RX(.55 + sw), M4.RY(-.55));
-    R.foreR = M4.RX(1.05);
-    R.torch = M4.mul(M4.RY(.55 * .6), M4.RX(-(.55 + sw + 1.05) + .15));   // stick roughly upright, leaning forward a bit
-  } else R.torch = M4.id();
+    R.armL = arm(.55 + sw, .55, 1); R.foreL = M4.RX(1.05);
+    R.torch = M4.mul(M4.RY(-.55 * .6), M4.RX(-(.55 + sw + 1.05) + .15));   // stick roughly upright
+  }
+  R.lantern = M4.mul(M4.RX(S * .25 * walk), M4.RY(Math.sin(t * 1.3) * .05));      // swings a little
 
   const W = new Array(BONES.length);
   BONES.forEach(([name, parent, j], i) => {
@@ -164,7 +171,14 @@ export function pose(st) {
   const dz = -Math.min(sole(BONE.footL), sole(BONE.footR));
   const G = M4.T(0, 0, dz);
   for (let i = 0; i < W.length; i++) W[i] = M4.mul(G, W[i]);
-  const tip = M4.apply(W[BONE.torch], 0, 0, 7.6);
+  const light = st.light === 'lantern' ? M4.apply(W[BONE.lantern], 0, 0, -3.6) : M4.apply(W[BONE.torch], 0, 0, 7.6);
   const feet = [M4.apply(W[BONE.footL], 0, .9, -1.5), M4.apply(W[BONE.footR], 0, .9, -1.5)];
-  return { W, tip, feet };
+  const T = W[BONE.tool], TL = W[BONE.toolL], at = (m, x, y, z) => M4.apply(m, x, y, z);
+  const pts = {
+    handR: at(W[BONE.foreR], 0, .3, -5.9), handL: at(W[BONE.foreL], 0, .3, -5.9),
+    tip: at(T, 0, 0, { rod: 40, spear: 27.5, club: 17, axe: 16, pick: 17, knife: 8.8 }[st.tool] || 0),
+    bowTop: at(TL, 0, -5.35, 15.6), bowBot: at(TL, 0, -5.35, -15.6), bowRest: at(TL, 0, -5.35, 0), bowGrip: at(TL, 0, .4, 0),
+    xbL: at(T, -9, -.8, 9.1), xbR: at(T, 9, -.8, 9.1), xbNut: at(T, 0, -.8, 2.6), xbFront: at(T, 0, -1.3, 13), xbBack: at(T, 0, -1.3, 1),
+  };
+  return { W, tip: light, feet, pts, tool: st.tool };
 }

@@ -33,7 +33,9 @@ js/map/viewer.js      pan/pinch/wheel, fly-to buttons, time slider, adaptive res
 tools/maptest.mjs     headless checks of the generator (+ --ppm preview)
 ada.html              NEW PLAY PAGE (step 2): the 3D hero walking on the GPU map (joystick, time slider for testing)
 js/map/sample.js      CPU terrain queries: field(), surfaceAt() (sea/river/sand/mud/rock/trail/grass + water depth), walkable, speedFactor
-js/hero/model.js      procedural 3D castaway: ellipsoid meshes on a 15-bone skeleton, pose() = walk/run/idle/torch, grounded feet
+js/hero/geom.js       mesh primitives: ellipsoid, cyl (cylinder/cone), box
+js/hero/model.js      procedural 3D castaway: meshes on an 18-bone skeleton, pose() = walk/run/idle + tool pose + torch/lantern, grounded feet
+js/hero/tools.js      tools/weapons: meshes (tool space: grip at origin, axis +z), carry pose, action keyframes, toolPose()
 js/hero/render.js     HeroGL: footprints, water rings, stencil sun shadow, lit model (oblique 3/4 view), torch flame
 js/play/hero.js       hero sim (input → speed/turn → collision → gait, prints, rings) — node-testable
 js/play/main.js       ada.html loop: joystick, pinch zoom, camera follow, torch light → terrain uniform uTorch
@@ -112,6 +114,12 @@ tools/herotest.mjs    headless checks of model + walking (grounding, sea/cliff b
 - Shadow = model flattened along the sun vector, stencil so it darkens once. Torch at night (before 05:45 / after 19:15):
   flame sprites + `mapgl.torch` (x, y, radius 150, intensity) lights the terrain and the hero.
 - Wading: sea shallower than WADE_MAX (.03) and rivers are walkable but slow; deeper sea blocks. Cliff coast (K>.55 + steep) blocks.
+- Tools (step 3): hand, club (Sopa), spear (Mızrak), knife (Bıçak), axe (Balta), pick (Kazma), bow (Yay, left hand), crossbow (Arbalet),
+  rod (Olta). Add one = MESH builder + TOOLS entry (carry pose + act keys) + icon in data/icons.js. `use(hero)` starts the action;
+  at `act.hit`: melee → dust/spray at `reach`, bow/crossbow → projectile (gravity, sticks in the ground), rod → line + bobber
+  (flies, floats with rings, second press reels in). Two-handed tools (`two`) → at night the light is a lantern on the belt.
+  ada.html has a TEMPORARY tool bar (keys 1–9) and an action button (Space/E); later the owner's smart button picks the tool itself.
+  Test hook: `__ADA.equip(id)`, `__ADA.setHold(t)` freezes an action frame.
 
 ## Roadmap (agreed with the owner)
 1. ✅ Bag 16 slots × 20, tool durability, rope, chest

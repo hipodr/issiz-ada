@@ -1,7 +1,8 @@
 // Headless checks for the hero on the new map.  node tools/herotest.mjs
 import { generateTerrain, TCELL } from '../js/map/terrain.js';
 import { surfaceAt, walkable } from '../js/map/sample.js';
-import { createHero, stepHero } from '../js/play/hero.js';
+import { createHero, createFx, stepHero, equip, use, actionLabel } from '../js/play/hero.js';
+import { TOOLS, TOOL_IDS, buildToolMesh } from '../js/hero/tools.js';
 import { pose, buildMeshes, BONE, M4, WALK, RUN } from '../js/hero/model.js';
 
 let fails = 0;
@@ -52,6 +53,31 @@ for (const seed of [1, 42, 777, 20261101]) {
   const ax = t.mountain.x - h1.x, ay = t.mountain.y - h1.y, l = Math.hypot(ax, ay);                            // inland
   for (let i = 0; i < 60; i++) { stepHero(h1, { x: ax / l * .5, y: ay / l * .5 }, 1 / 60, t, mk, i); stepHero(h2, { x: ax / l, y: ay / l }, 1 / 60, t, mk, i); }
   ok(h2.speed > h1.speed * 1.4, `running (${h2.speed.toFixed(0)}) faster than walking (${h1.speed.toFixed(0)})`);
+}
+// --- tools ---
+{
+  const t = generateTerrain(1);
+  for (const id of TOOL_IDS) {
+    if (id !== 'hand') { const m = buildToolMesh(id); ok(m.pos.length > 0 && finite(m.pos) && finite(m.nrm), `${id}: mesh (${m.pos.length / 9} tris)`); }
+    const h = createHero(t.spawn.x, t.spawn.y), mk = { prints: [], rings: [] }, fx = createFx();
+    ok(equip(h, id) && h.tool === id, `${id}: equip`);
+    let time = 0, bad = false, maxTip = -1e9;
+    use(h);
+    ok(!equip(h, 'club') || id === 'club', `${id}: cannot switch mid-action`);
+    for (let i = 0; i < 60 * 3; i++) {
+      time += 1 / 60; stepHero(h, { x: 0, y: 0 }, 1 / 60, t, mk, time, fx);
+      if (!h.pose.W.every(finite)) bad = true;
+      maxTip = Math.max(maxTip, h.pose.pts.tip[2]);
+    }
+    ok(!bad && h.actT == null, `${id}: action plays to the end (${TOOLS[id].act.dur}s), pose stays finite`);
+    if (TOOLS[id].shoots) ok(fx.projectiles.length === 1 && fx.projectiles[0].stuck, `${id}: ${TOOLS[id].shoots} flies and sticks in the ground`);
+    if (['axe', 'pick'].includes(id)) ok(maxTip > 30, `${id}: raised overhead during the swing (tip z ${maxTip.toFixed(0)})`);
+    if (id === 'rod') {
+      ok(!!h.line && h.line.state === 'float' && actionLabel(h) === 'Çek', 'rod: bobber lands and the button turns into Çek');
+      use(h); for (let i = 0; i < 60 * 3; i++) { time += 1 / 60; stepHero(h, { x: 0, y: 0 }, 1 / 60, t, mk, time, fx); }
+      ok(!h.line && actionLabel(h) === 'Olta at', 'rod: second press reels the line in');
+    }
+  }
 }
 console.log(fails ? `\n${fails} check(s) FAILED` : '\nall hero checks passed');
 process.exit(fails ? 1 : 0);
