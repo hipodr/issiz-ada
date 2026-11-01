@@ -1,4 +1,4 @@
-// New play page (ada.html), step 2 of the rebuild: the hero walking on the GPU map. Nothing else on the island yet.
+// New play page (ada.html): the hero on the GPU map with tools, and the island's objects (trees, palms, bushes, reeds, rocks…).
 // Input : touch joystick (left part of the screen), pinch zoom, keyboard (WASD / arrows, Shift = run), time slider
 // Output: terrain + hero drawn every frame; ?seed=N picks the island, ?debug shows fps; window.__ADA for tests
 import { generateTerrain, packTerrain, TSIZE } from '../map/terrain.js';
@@ -7,6 +7,8 @@ import { HeroGL } from '../hero/render.js';
 import { createHero, createFx, stepHero, equip, use, actionLabel } from './hero.js';
 import { TOOLS, TOOL_IDS } from '../hero/tools.js';
 import { ICON } from '../data/icons.js';
+import { createWorld2, tick, ITEM_NAMES } from '../world2/objects.js';
+import { sceneItems } from '../world2/scene.js';
 
 const $ = id => document.getElementById(id);
 const cv = $('cv'), q = new URLSearchParams(location.search);
@@ -14,7 +16,7 @@ let mapgl, herogl;
 try { mapgl = new MapGL(cv); herogl = new HeroGL(mapgl.gl); }
 catch (e) { $('err').style.display = 'grid'; $('err').textContent += ' (' + e.message + ')'; throw e; }
 
-let terrain = null, hero = null, seed = +q.get('seed') || (Date.now() % 1e9), quality = 1, scale = 1;
+let terrain = null, hero = null, world = null, dayN = 0, seed = +q.get('seed') || (Date.now() % 1e9), quality = 1, scale = 1;
 const marks = { prints: [], rings: [] };
 let fx = createFx();
 const cam = { x: TSIZE / 2, y: TSIZE / 2, zoom: 1.6 };
@@ -32,7 +34,8 @@ function build(s) {
   setTimeout(() => {
     seed = s >>> 0; terrain = generateTerrain(seed); mapgl.setTerrain(packTerrain(terrain), terrain);
     const sp = terrain.spawn || { x: TSIZE / 2, y: TSIZE / 2 };
-    hero = createHero(sp.x, sp.y); marks.prints.length = 0; marks.rings.length = 0; fx = createFx(); refreshTools();
+    hero = createHero(sp.x, sp.y); marks.prints.length = 0; marks.rings.length = 0; fx = createFx();
+    world = createWorld2(terrain, seed); hero.world = world; dayN = 0; refreshTools(); showInv();
     cam.x = hero.x; cam.y = hero.y; cam.zoom = zoomBase();
     $('seedLbl').textContent = 'deneme · ada #' + seed; $('busy').style.display = 'none';
     history.replaceState(null, '', '?seed=' + seed + (q.has('debug') ? '&debug' : ''));
@@ -42,7 +45,8 @@ $('newBtn').onclick = () => build(Math.floor(Math.random() * 1e9));
 
 // ---- time of day (test control) ----
 const tod = $('tod'), hhmm = m => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
-const showTod = () => { const m = +tod.value; $('tlbl').textContent = hhmm(m); $('timeBtn').textContent = 'Saat ' + hhmm(m); };
+const showTod = () => { const m = Math.floor(+tod.value); $('tlbl').textContent = hhmm(m); $('timeBtn').textContent = `${dayN + 1}. gün ${hhmm(m)}`; };
+const DAY_SEC = 240;                                                                     // one game day = 4 real minutes (as in the old game)
 tod.oninput = showTod; showTod();
 $('timeBtn').onclick = () => { $('timeBox').hidden = !$('timeBox').hidden; };
 
@@ -107,13 +111,28 @@ addEventListener('keydown', e => {
   const n = +e.key; if (n >= 1 && n <= TOOL_IDS.length && equip(hero, TOOL_IDS[n - 1])) refreshTools();
 });
 
+// ---- bag counts (temporary HUD until the real bag moves over) + pickup toast ----
+const INV_ICON = { wood: 'wood', stone: 'stone', fiber: 'fiber', berry: 'berry', coconut: 'coconut' };
+function showInv() {
+  $('inv').innerHTML = Object.keys(ITEM_NAMES).filter(k => hero.inv[k]).map(k => `<span title="${ITEM_NAMES[k]}">${svg(INV_ICON[k])}<b>${hero.inv[k]}</b></span>`).join('');
+}
+let lastGot = null;
+function showGot() {
+  if (!hero.got || hero.got === lastGot) return; lastGot = hero.got;
+  const t = $('toast'); t.textContent = Object.entries(hero.got.got).map(([k, n]) => `+${n} ${ITEM_NAMES[k]}`).join('  ');
+  t.classList.remove('show'); void t.offsetWidth; t.classList.add('show'); showInv();
+}
+
 // ---- loop ----
 const SURF = { sea: 'Sığ su', river: 'Dere', sand: 'Kum', mud: 'Çamur', rock: 'Kaya', trail: 'Patika', grass: 'Çimen' };
 let last = performance.now(), slowT = 0, frames = 0, fpsT = 0, auto = null, hold = null;
 function frame(now) {
   const dt = Math.min(.05, (now - last) / 1000); last = now; const time = now / 1000;
   if (terrain && hero) {
-    const minute = +tod.value, lt0 = minute / 1440;
+    let minute = +tod.value + dt * 1440 / DAY_SEC;                                     // the clock runs; the slider still jumps
+    if (minute >= 1440) { minute -= 1440; dayN++; }
+    tod.value = minute; showTod();
+    const lt0 = minute / 1440;
     const dark = minute < 345 || minute > 1155;                                        // dark enough → a light
     hero.light = dark ? (TOOLS[hero.tool].two ? 'lantern' : 'torch') : null;              // both hands busy → lantern on the belt
     hero.lightI = dark ? .95 + .1 * Math.sin(time * 17) * Math.sin(time * 5.3) : 0;
@@ -124,10 +143,13 @@ function frame(now) {
     const lx = hero.x + Math.cos(hero.yaw) * hero.speed * .25, ly = hero.y + Math.sin(hero.yaw) * hero.speed * .25 - 10;
     const k = 1 - Math.exp(-dt * 5); cam.x += (lx - cam.x) * k; cam.y += (ly - cam.y) * k;
     const W = cv.width, H = cv.height, zoom = cam.zoom * scale;
+    const view = { x0: cam.x - W / 2 / zoom, x1: cam.x + W / 2 / zoom, y0: cam.y - H / 2 / zoom, y1: cam.y + H / 2 / zoom };
+    tick(world, dayN + minute / 1440, view, time);
+    showGot();
     // the torch light on the ground uses last frame's tip (one frame of lag is invisible)
     mapgl.torch = hero.light && hero.tipW ? [hero.tipW[0], hero.tipW[1] + 6, hero.light === 'torch' ? 150 : 115, hero.lightI] : [0, 0, 0, 0];
     const lt = mapgl.draw(cam, scale, time, lt0);
-    hero.tipW = herogl.draw(hero, fx, { cam, zoom, W, H, lt }, marks, time);
+    hero.tipW = herogl.draw(hero, fx, { cam, zoom, W, H, lt }, marks, time, sceneItems(world, hero, view, time));
     $('surf').textContent = SURF[hero.surface] || '';
   }
   slowT = dt > 1 / 28 ? slowT + dt : Math.max(0, slowT - dt * .5);
@@ -137,4 +159,4 @@ function frame(now) {
 }
 build(seed);
 requestAnimationFrame(frame);
-window.__ADA = { cam, marks, tod, build, equip: id => { equip(hero, id); refreshTools(); }, use: () => use(hero), get fx() { return fx; }, get hero() { return hero; }, get terrain() { return terrain; }, setAuto(v) { auto = v; }, setHold(v) { hold = v; } };
+window.__ADA = { cam, marks, tod, build, get world() { return world; }, setDay(d) { dayN = d; }, equip: id => { equip(hero, id); refreshTools(); }, use: () => use(hero), get fx() { return fx; }, get hero() { return hero; }, get terrain() { return terrain; }, setAuto(v) { auto = v; }, setHold(v) { hold = v; } };

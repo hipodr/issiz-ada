@@ -38,13 +38,20 @@ button,a.btn{font:inherit;color:var(--fg);background:var(--panel);border:1px sol
 #tools button{flex:0 0 auto;width:44px;height:44px;padding:5px;border-radius:12px}
 #tools button svg{width:100%;height:100%;display:block}
 #tools button.on{background:var(--sun);border-color:transparent}
-#timeBox{top:calc(112px + env(safe-area-inset-top))!important}
+#timeBox{top:calc(150px + env(safe-area-inset-top))!important}
 #act{position:fixed;right:18px;bottom:calc(34px + env(safe-area-inset-bottom));width:92px;height:92px;border-radius:50%;padding:0;
   display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;background:var(--sun);color:var(--ink);font-weight:800;font-size:13px;
   border:none;box-shadow:0 4px 0 rgba(120,50,0,.55),0 6px 16px rgba(0,0,0,.35);touch-action:none}
 #act:active,#act.down{transform:translateY(3px);box-shadow:0 1px 0 rgba(120,50,0,.55),0 3px 10px rgba(0,0,0,.35)}
 #act svg{width:34px;height:34px}
 #surf{bottom:calc(134px + env(safe-area-inset-bottom))!important}
+#inv{position:fixed;left:12px;top:calc(112px + env(safe-area-inset-top));display:flex;gap:6px;flex-wrap:wrap;pointer-events:none}
+#inv span{display:flex;align-items:center;gap:3px;padding:3px 8px 3px 4px;border-radius:10px;background:var(--panel);border:1px solid var(--line);font-weight:700;font-size:13px}
+#inv svg{width:20px;height:20px}
+#toast{position:fixed;left:50%;top:38%;transform:translate(-50%,0);padding:6px 12px;border-radius:12px;background:var(--panel);font-weight:800;color:#ffe2a8;
+  opacity:0;pointer-events:none;text-shadow:0 1px 2px rgba(0,0,0,.5)}
+#toast.show{animation:pop 1.4s ease-out forwards}
+@keyframes pop{0%{opacity:0;transform:translate(-50%,10px)}12%{opacity:1;transform:translate(-50%,0)}70%{opacity:1}100%{opacity:0;transform:translate(-50%,-26px)}}
 #busy{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);padding:10px 16px;background:var(--panel);border-radius:14px;display:none}
 #err{position:fixed;inset:0;display:none;place-items:center;padding:24px;text-align:center;color:var(--muted)}
 </style>
@@ -59,9 +66,11 @@ button,a.btn{font:inherit;color:var(--fg);background:var(--panel);border:1px sol
 </div>
 <div id="timeBox" hidden><span>Saat</span><input id="tod" type="range" min="0" max="1440" step="10" value="660"><span id="tlbl">11:00</span></div>
 <div id="tools"></div>
+<div id="inv"></div>
+<div id="toast"></div>
 <button type="button" id="act"><span id="actIco"></span><span id="actLbl">Yumruk</span></button>
 <div id="stick"><div id="knob"></div></div>
-<div id="hint">Sol tarafta sürükle: yürü (sonuna kadar: koş) · üstten alet seç, turuncu tuş: kullan</div>
+<div id="hint">Sol tarafta sürükle: yürü · turuncu tuş: kullan / topla. Ağaca balta, kayaya kazma.</div>
 <div id="surf"></div>
 <div id="busy">Ada oluşuyor…</div>
 <div id="err">Bu cihazda WebGL çalışmıyor.</div>

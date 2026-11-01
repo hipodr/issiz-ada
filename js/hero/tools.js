@@ -6,7 +6,7 @@
 //
 // Pose keys (all optional, missing → the tool's carry pose):  sR/sL = [pitch, out]  shoulder (pitch + forward/up,
 // out + raises the arm sideways), eR/eL = elbow bend, wR/wL = [x, y, z] grip rotation, tw = torso twist (+ turns left), ln = lean,
-// by = whole-body turn (+ left; an archer stands side-on while the aim stays on the facing direction).
+// by = whole-body turn (+ left; an archer stands side-on while the aim stays on the facing direction), cr = crouch 0..1.
 // Action: { dur (s), keys: [[t 0..1, pose]...], hit: t of the impact / release, move: speed factor while acting, label }
 import { ellipsoid, cyl, box } from './geom.js';
 
@@ -138,12 +138,16 @@ export const TOOLS = {
     fish: { sR: [.85, .12], eR: .35, wR: [-0.74, -0.02, 0], sL: [.65, -.15], eL: 1.1 },          // holding while the line is out
     act: { dur: .95, hit: .58, move: 0, keys: [[0, {}], [.4, { sR: [2.5, .15], eR: .55, wR: [-0.62, 0.14, 0], tw: -.2, ln: -.1 }],
       [.58, { sR: [1.25, .12], eR: .2, wR: [-0.94, 0.02, 0], tw: .1, ln: .12 }], [.78, { sR: [.85, .12], eR: .35, wR: [-.7, 0, 0], sL: [.65, -.15], eL: 1.1 }], [1, { fish: 1 }]] } },
+  gather: { name: 'Topla', hand: null, label: 'Topla', hidden: true,                    // crouch and pick up (used automatically with bare hands)
+    carry: {},
+    act: { dur: .62, hit: .5, move: 0, keys: [[0, {}], [.4, { cr: 1, ln: .55, sR: [1.0, .1], eR: .25, sL: [.55, .12], eL: .4 }],
+      [.55, { cr: 1, ln: .6, sR: [.85, .1], eR: .5, sL: [.5, .12], eL: .45 }], [1, {}]] } },
 };
-export const TOOL_IDS = Object.keys(TOOLS);
+export const TOOL_IDS = Object.keys(TOOLS).filter(k => !TOOLS[k].hidden);
 
 const lerp = (a, b, t) => a + (b - a) * t;
 const ease = t => t * t * (3 - 2 * t);
-const POSE_KEYS = { sR: [.08, .1], eR: .3, wR: [0, 0, 0], sL: [.08, .1], eL: .3, wL: [0, 0, 0], tw: 0, ln: 0, by: 0 };
+const POSE_KEYS = { sR: [.08, .1], eR: .3, wR: [0, 0, 0], sL: [.08, .1], eL: .3, wL: [0, 0, 0], tw: 0, ln: 0, by: 0, cr: 0 };
 const fill = (p, base) => { const o = {}; for (const k in POSE_KEYS) o[k] = p[k] !== undefined ? p[k] : base[k] !== undefined ? base[k] : POSE_KEYS[k]; return o; };
 const mixPose = (a, b, t) => { const o = {}; for (const k in a) o[k] = Array.isArray(a[k]) ? a[k].map((v, i) => lerp(v, b[k][i], t)) : lerp(a[k], b[k], t); return o; };
 

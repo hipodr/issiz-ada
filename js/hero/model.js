@@ -145,10 +145,14 @@ export function pose(st) {
     R['fore' + s] = M4.RX(.25 + .25 * walk + 1.05 * run + Math.max(0, sw) * .5);
   }
   // tool: carry pose or action keyframes override the arms that hold it; a little walk swing stays
-  const tp = toolPose(st.tool || 'hand', st.act, st.fishing), P = tp.p, acting = st.act != null;
+  const tp = toolPose(st.actKind || st.tool || 'hand', st.act, st.fishing), P = tp.p, acting = st.act != null;
   const swR = acting ? 0 : S * armA * .3, swL = acting ? 0 : -S * armA * .3;
   if (tp.armR) { R.armR = arm(P.sR[0] + swR, P.sR[1], -1); R.foreR = M4.RX(P.eR); }
   if (tp.armL) { R.armL = arm(P.sL[0] + swL, P.sL[1], 1); R.foreL = M4.RX(P.eL); }
+  if (P.cr > .01) for (const [s, sg] of [['L', 1], ['R', -1]]) {                    // crouch: knees bend, grounding lowers the body
+    R['leg' + s] = M4.mul(M4.RX(P.cr * 1.15 + (sg > 0 ? .1 : -.05) * P.cr), M4.RY(sg * -.06));
+    R['shin' + s] = M4.RX(-P.cr * 2.0); R['foot' + s] = M4.RX(P.cr * .85);
+  }
   const grip = w => M4.mul(M4.mul(M4.mul(M4.RX(-Math.PI / 2), M4.RX(w[0])), M4.RY(w[1])), M4.RZ(w[2]));
   R.tool = grip(P.wR); R.toolL = grip(P.wL);
   R.spine = M4.mul(M4.RX(lean + breathe + P.ln), M4.RZ(-S * .16 * walk + P.tw));

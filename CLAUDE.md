@@ -39,7 +39,10 @@ js/hero/tools.js      tools/weapons: meshes (tool space: grip at origin, axis +z
 js/hero/render.js     HeroGL: footprints, water rings, stencil sun shadow, lit model (oblique 3/4 view), torch flame
 js/play/hero.js       hero sim (input → speed/turn → collision → gait, prints, rings) — node-testable
 js/play/main.js       ada.html loop: joystick, pinch zoom, camera follow, torch light → terrain uniform uTorch
-tools/herotest.mjs    headless checks of model + walking (grounding, sea/cliff blocking, prints, rings, trail to cave)
+tools/herotest.mjs    headless checks of model + walking + tools + island objects (placement, harvesting, regrowth)
+js/world2/objects.js  island objects (tree, palm, bush, saz, rock, stick, pebble, coconut): placement rules, grid, collision,
+                      targetFor()/harvest(), tick() regrowth, dailySpawn()
+js/world2/models.js   their 3D meshes (canopy separate for see-through fade) · js/world2/scene.js → draw items for HeroGL
 ```
 
 ## Controls (owner's design — keep it this way)
@@ -121,6 +124,16 @@ tools/herotest.mjs    headless checks of model + walking (grounding, sea/cliff b
   ada.html has a TEMPORARY tool bar (keys 1–9) and an action button (Space/E); later the owner's smart button picks the tool itself.
   Test hook: `__ADA.equip(id)`, `__ADA.setHold(t)` freezes an action frame.
 
+## Island objects (step 4) — owner's rules
+- Each kind only where it belongs and sparse (caps in KIND): trees in damp forest, palms near the shore, bushes on forest edges /
+  clearings, reeds (saz) on river banks / delta / wet hollows, rocks on the mountain and rocky shore, sticks under trees, pebbles on
+  beaches / river beds. Trails, the landing beach and water stay clear.
+- Fiber (Lif) has ONE source: reeds (saz). Palms give coconuts (shake with hand/club) and wood (axe). Stick → wood, pebble → stone.
+- Regrowth: small things refill in place (berries 2.5 d, reeds 1.5 d, coconuts 1.5 d each); big things come back slowly and ONLY
+  out of view (tree: stump → sapling after 6 d → grows 3 d; rock: 12 d); a few sticks/pebbles appear each morning up to a cap.
+- Hand + something pickable → `gather` action (crouch). Axe chops trees (6 hits, falls toward where he faces), pick breaks rocks.
+- ada.html runs a clock (1 day = 240 s, the slider still jumps) and shows temporary bag counts + a pickup toast.
+
 ## Roadmap (agreed with the owner)
 1. ✅ Bag 16 slots × 20, tool durability, rope, chest
 2. ✅ Fishing (bite mini-game), bow + arrows + rabbits, timed cooking, raw-food sickness, canteen
@@ -130,6 +143,6 @@ tools/herotest.mjs    headless checks of model + walking (grounding, sea/cliff b
 4. ✅ Boars, shipwreck crates, bandage
 5. ✅ v8: smooth hills + few crags (replaced plateaus/ramps — owner found them wall-like), detailed pixel ground,
    craft icon grid by level, home sheet + Kulübe → Baraka upgrade
-6. IN PROGRESS: ✅ new realistic map (map.html) → ✅ 3D hero (ada.html) → next: objects/gameplay onto it
+6. IN PROGRESS: ✅ new realistic map → ✅ 3D hero → ✅ tools/weapons → ✅ island objects + regrowth → next: bag/crafting/survival onto ada.html
 7. Later ideas: underground map behind the cave, 3rd home level (Ev), iron/ore on mountain tops, energy bar, weather (rain/storm puts out fires), farming, sounds, minimap
 Goal is endless survival with a day record (no escape ending).

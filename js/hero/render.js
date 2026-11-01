@@ -7,6 +7,7 @@
 // Output : pixels; returns the light position in world coords (for the terrain light) or null
 import { buildMeshes, BONES, BONE, M4 } from './model.js';
 import { buildToolMesh, TOOLS } from './tools.js';
+import { buildModels } from '../world2/models.js';
 
 export const KY = .55, KZ = .92;      // oblique view of the model: ground-forward squashed, height almost full
 
@@ -14,25 +15,31 @@ const VS_BODY = `
 attribute vec3 aP, aN, aC;
 uniform mat4 uM;
 uniform vec2 uOrigin, uRes;
-uniform float uZoom, uMode, uYOff;
-uniform vec3 uLight;
+uniform float uZoom, uMode;
+uniform vec2 uOff;                     // this object's ground position minus the hero's (world units)
+uniform vec3 uLight, uWind;            // wind: amplitude, phase, time
 varying vec3 vN, vC, vW;
 void main(){
   vec4 w = uM * vec4(aP, 1.);
-  vW = w.xyz; vN = (uM * vec4(aN, 0.)).xyz; vC = aC;
+  float sway = uWind.x * pow(max(w.z, 0.) / 60., 2.);
+  w.x += sin(uWind.z * 1.6 + uWind.y) * sway; w.y += cos(uWind.z * 1.1 + uWind.y * 1.7) * sway * .5;
+  vW = w.xyz + vec3(uOff, 0.); vN = (uM * vec4(aN, 0.)).xyz; vC = aC;
   vec2 s; float z;
   if (uMode > .5) { s = w.xy - uLight.xy / max(uLight.z, .3) * max(w.z, 0.); z = 0.; }       // shadow on the ground
-  else { s = vec2(w.x, w.y * ${KY} - w.z * ${KZ}); z = clamp(-((w.y + uYOff) * .6 + w.z * .8) / 160., -.99, .99); }
+  else { s = vec2(w.x, w.y * ${KY} - w.z * ${KZ}); z = clamp(-((w.y + uOff.y) * .6 + w.z * .8) / 400., -.99, .99); }
   vec2 px = uOrigin + s * uZoom;
   gl_Position = vec4(px.x / uRes.x * 2. - 1., 1. - px.y / uRes.y * 2., z, 1.);
 }`;
 const FS_BODY = `
 precision highp float;                 // uniforms shared with the vertex shader must match its (high) precision
-uniform float uMode, uShadowA, uWater, uTorchI;
+uniform float uMode, uShadowA, uWater, uTorchI, uFade;
 uniform vec3 uLight, uLightCol, uAmb, uTorchP;
 varying vec3 vN, vC, vW;
 void main(){
   if (uMode > .5) { gl_FragColor = vec4(0., 0., 0., uShadowA); return; }
+  if (uFade > 0.) {                                                                              // see-through canopy when the hero is behind it
+    vec2 q = mod(floor(gl_FragCoord.xy), 2.); if (q.x + q.y * 2. < uFade * 4. - .5) discard;
+  }
   vec3 n = normalize(vN);
   float d = dot(n, uLight);
   vec3 sky = mix(uAmb * .7, uAmb * 1.2, n.z * .5 + .5);                                       // hemisphere ambient
@@ -108,13 +115,14 @@ export class HeroGL {
     this.gl = gl;
     this.pb = program(gl, VS_BODY, FS_BODY); this.pf = program(gl, VS_FLAT, FS_FLAT);
     const U = (p, names) => Object.fromEntries(names.map(n => [n, gl.getUniformLocation(p, n)]));
-    this.ub = U(this.pb, ['uM', 'uOrigin', 'uRes', 'uZoom', 'uMode', 'uYOff', 'uLight', 'uShadowA', 'uWater', 'uTorchI', 'uLightCol', 'uAmb', 'uTorchP']);
+    this.ub = U(this.pb, ['uM', 'uOrigin', 'uRes', 'uZoom', 'uMode', 'uOff', 'uWind', 'uFade', 'uLight', 'uShadowA', 'uWater', 'uTorchI', 'uLightCol', 'uAmb', 'uTorchP']);
     this.uf = U(this.pf, ['uRes', 'uKind']);
     this.ab = ['aP', 'aN', 'aC'].map(n => gl.getAttribLocation(this.pb, n));
     this.af = ['aP', 'aUV', 'aC'].map(n => gl.getAttribLocation(this.pf, n));
     this.parts = buildMeshes().map(m => upload(gl, m));
     this.tools = {};
-    for (const id of [...Object.keys(TOOLS).filter(k => k !== 'hand'), 'arrow', 'bolt', 'bobber']) this.tools[id] = upload(gl, buildToolMesh(id));
+    for (const id of [...Object.keys(TOOLS).filter(k => TOOLS[k].hand), 'arrow', 'bolt', 'bobber']) this.tools[id] = upload(gl, buildToolMesh(id));
+    this.models = Object.fromEntries(Object.entries(buildModels()).map(([k, m]) => [k, upload(gl, m)]));
     this.flatBuf = gl.createBuffer();
   }
 
@@ -138,7 +146,7 @@ export class HeroGL {
     gl.disableVertexAttribArray(auv); gl.disableVertexAttribArray(ac);
   }
 
-  draw(hero, fx, view, marks, time) {
+  draw(hero, fx, view, marks, time, scene = []) {
     const gl = this.gl, { cam, zoom, W, H, lt } = view;
     const toPx = (x, y) => [(x - cam.x) * zoom + W / 2, (y - cam.y) * zoom + H / 2];
     gl.useProgram(this.pf); gl.uniform2f(this.uf.uRes, W, H);
@@ -163,21 +171,26 @@ export class HeroGL {
     this.parts.forEach((p, i) => {
       const nm = BONES[i][0];
       if (!p.n || (nm === 'torch' && hero.light !== 'torch') || (nm === 'lantern' && hero.light !== 'lantern')) return;
-      items.push({ ...p, M: M4.mul(Y, P.W[i]), ox, oy, yo: 0 });
+      items.push({ ...p, M: M4.mul(Y, P.W[i]), ox, oy, off: [0, 0], hero: true });
     });
-    if (def.hand) items.push({ ...this.tools[hero.tool], M: M4.mul(Y, P.W[def.hand === 'L' ? BONE.toolL : BONE.tool]), ox, oy, yo: 0 });
+    if (def.hand) items.push({ ...this.tools[hero.tool], M: M4.mul(Y, P.W[def.hand === 'L' ? BONE.toolL : BONE.tool]), ox, oy, off: [0, 0], hero: true });
     if (hero.nock) {                                                                   // arrow on the string while drawing the bow
       const a = P.pts.handR, b = P.pts.bowGrip, d = [b[0] - a[0], b[1] - a[1], b[2] - a[2]], l = Math.hypot(...d) || 1;
-      items.push({ ...this.tools.arrow, M: M4.mul(Y, alongMatrix([a[0] + d[0] / l * 11, a[1] + d[1] / l * 11, a[2] + d[2] / l * 11], d)), ox, oy, yo: 0 });
+      items.push({ ...this.tools.arrow, M: M4.mul(Y, alongMatrix([a[0] + d[0] / l * 11, a[1] + d[1] / l * 11, a[2] + d[2] / l * 11], d)), ox, oy, off: [0, 0], hero: true });
     }
-    if (hero.tool === 'crossbow' && hero.loaded) items.push({ ...this.tools.bolt, M: M4.mul(Y, M4.mul(P.W[BONE.tool], M4.T(0, -1.3, 6.5))), ox, oy, yo: 0 });
+    if (hero.tool === 'crossbow' && hero.loaded) items.push({ ...this.tools.bolt, M: M4.mul(Y, M4.mul(P.W[BONE.tool], M4.T(0, -1.3, 6.5))), ox, oy, off: [0, 0], hero: true });
     for (const pr of fx.projectiles) {
       const [px, py] = toPx(pr.x, pr.y);
-      items.push({ ...this.tools[pr.kind], M: alongMatrix([0, 0, pr.z], [pr.dx, pr.dy, pr.dz]), ox: px, oy: py, yo: pr.y - hero.y });
+      items.push({ ...this.tools[pr.kind], M: alongMatrix([0, 0, pr.z], [pr.dx, pr.dy, pr.dz]), ox: px, oy: py, off: [pr.x - hero.x, pr.y - hero.y] });
     }
     if (hero.line && hero.line.state !== 'none') {
       const L = hero.line, [px, py] = toPx(L.x, L.y);
-      items.push({ ...this.tools.bobber, M: M4.mul(M4.T(0, 0, L.z), M4.RX(Math.sin(time * 3) * .15)), ox: px, oy: py, yo: L.y - hero.y });
+      items.push({ ...this.tools.bobber, M: M4.mul(M4.T(0, 0, L.z), M4.RX(Math.sin(time * 3) * .15)), ox: px, oy: py, off: [L.x - hero.x, L.y - hero.y] });
+    }
+    for (const it of scene) {                                                          // world objects (already culled to the view)
+      const m = this.models[it.name]; if (!m) continue;
+      const [px, py] = toPx(it.x, it.y);
+      items.push({ ...m, M: it.M, ox: px, oy: py, off: [it.x - hero.x, it.y - hero.y], wind: it.wind, fade: it.fade, noShadow: it.noShadow });
     }
 
     // 3 + 4. shadows then lit meshes
@@ -185,27 +198,30 @@ export class HeroGL {
     gl.useProgram(this.pb);
     gl.uniform2f(ub.uRes, W, H); gl.uniform1f(ub.uZoom, zoom);
     gl.uniform3fv(ub.uLight, lt.L); gl.uniform3fv(ub.uLightCol, lt.lightCol); gl.uniform3fv(ub.uAmb, lt.amb);
-    gl.uniform1f(ub.uWater, hero.water > 0 ? hero.water : -99);
     const lightM = hero.light ? M4.apply(Y, ...P.tip) : null;
     gl.uniform3fv(ub.uTorchP, lightM || [0, 0, -999]); gl.uniform1f(ub.uTorchI, hero.light ? hero.lightI * (hero.light === 'lantern' ? .8 : 1) : 0);
     const [aP, aN, aC] = this.ab;
     gl.enableVertexAttribArray(aP); gl.enableVertexAttribArray(aN); gl.enableVertexAttribArray(aC);
+    let shadowPass = false;
     const drawItems = () => {
       for (const p of items) {
-        gl.uniformMatrix4fv(ub.uM, false, p.M); gl.uniform2f(ub.uOrigin, p.ox, p.oy); gl.uniform1f(ub.uYOff, p.yo);
+        if (shadowPass && p.noShadow) continue;
+        gl.uniformMatrix4fv(ub.uM, false, p.M); gl.uniform2f(ub.uOrigin, p.ox, p.oy); gl.uniform2fv(ub.uOff, p.off);
+        gl.uniform3f(ub.uWind, p.wind ? p.wind[0] : 0, p.wind ? p.wind[1] : 0, time % 1000); gl.uniform1f(ub.uFade, shadowPass ? 0 : p.fade || 0);
+        gl.uniform1f(ub.uWater, p.hero && hero.water > 0 ? hero.water : -99);
         gl.bindBuffer(gl.ARRAY_BUFFER, p.b);
         gl.vertexAttribPointer(aP, 3, gl.FLOAT, false, 36, 0); gl.vertexAttribPointer(aN, 3, gl.FLOAT, false, 36, 12); gl.vertexAttribPointer(aC, 3, gl.FLOAT, false, 36, 24);
         gl.drawArrays(gl.TRIANGLES, 0, p.n);
       }
     };
     const shadowA = (.34 * lt.day + .1 * (1 - lt.day)) * (hero.water > 6 ? .4 : 1);
-    gl.uniform1f(ub.uMode, 1); gl.uniform1f(ub.uShadowA, shadowA);
+    gl.uniform1f(ub.uMode, 1); gl.uniform1f(ub.uShadowA, shadowA); shadowPass = true;
     gl.clearStencil(0); gl.clear(gl.STENCIL_BUFFER_BIT); gl.enable(gl.STENCIL_TEST);
     gl.stencilFunc(gl.EQUAL, 0, 0xff); gl.stencilOp(gl.KEEP, gl.KEEP, gl.INCR);
     gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
     drawItems();
     gl.disable(gl.STENCIL_TEST); gl.disable(gl.BLEND);
-    gl.uniform1f(ub.uMode, 0);
+    gl.uniform1f(ub.uMode, 0); shadowPass = false;
     gl.clearDepth(1); gl.clear(gl.DEPTH_BUFFER_BIT); gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LESS);
     drawItems();
     gl.disable(gl.DEPTH_TEST);

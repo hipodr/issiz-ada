@@ -10,12 +10,13 @@
 import { WALK, RUN, advance, pose } from '../hero/model.js';
 import { TOOLS } from '../hero/tools.js';
 import { surfaceAt, walkable, speedFactor } from '../map/sample.js';
+import { targetFor, harvest, blocked } from '../world2/objects.js';
 
 export const MAX_PRINTS = 260, MAX_RINGS = 40, MAX_PROJ = 24;
 
 export function createHero(x, y) {
   return { x, y, yaw: Math.PI / 2, speed: 0, phase: 0, time: 0, water: 0, surface: 'grass', light: null, lightI: 0, ringT: 0, pose: null,
-    tool: 'hand', actT: null, line: null, nock: false, loaded: true };
+    tool: 'hand', actT: null, actKind: null, line: null, nock: false, loaded: true, world: null, inv: {}, got: null };
 }
 export const createFx = () => ({ projectiles: [], dust: [] });
 
@@ -26,19 +27,27 @@ export const toWorld = (h, p) => { const fx = Math.cos(h.yaw), fy = Math.sin(h.y
 /** Equip a tool (any id from TOOLS). Reels the line in when switching away from the rod. */
 export function equip(h, id) { if (!TOOLS[id] || h.actT != null) return false; h.tool = id; h.line = null; h.nock = false; h.loaded = true; return true; }
 
-/** The action button. Returns the label of what happened (for the UI) or null. */
+/** What the action would hit right now (needs h.world). */
+export const target = h => h.world ? targetFor(h.world, h.x, h.y, h.yaw, h.tool) : null;
+
+/** The action button. Bare hands next to something to pick → crouch and gather. Returns what started, or null. */
 export function use(h) {
   if (h.actT != null) return null;
   if (h.tool === 'rod' && h.line) { if (h.line.state !== 'reel') h.line.state = 'reel'; return 'reel'; }
+  const tg = target(h);
+  h.actKind = h.tool === 'hand' && tg && tg.verb === 'pick' ? 'gather' : null;
   h.actT = 0; h.fired = false;
-  return TOOLS[h.tool].act ? h.tool : null;
+  return h.actKind || h.tool;
 }
 /** Label for the action button right now. */
-export function actionLabel(h) { const T = TOOLS[h.tool]; return h.tool === 'rod' && h.line ? T.label2 : T.label; }
+export function actionLabel(h) {
+  const T = TOOLS[h.tool]; if (h.tool === 'rod' && h.line) return T.label2;
+  const tg = target(h); return tg ? tg.label : T.label;
+}
 
 export function stepHero(h, input, dt, t, marks, time, fx = createFx()) {
   h.time += dt;
-  const T = TOOLS[h.tool] || TOOLS.hand, A = T.act;
+  const T = TOOLS[h.actKind || h.tool] || TOOLS.hand, A = T.act;
   const acting = h.actT != null, slow = acting ? A.move : h.line ? .6 : 1;
   const m = Math.min(1, Math.hypot(input.x, input.y));
   const dx = m > 0 ? input.x / Math.hypot(input.x, input.y) : Math.cos(h.yaw), dy = m > 0 ? input.y / Math.hypot(input.x, input.y) : Math.sin(h.yaw);
@@ -51,7 +60,7 @@ export function stepHero(h, input, dt, t, marks, time, fx = createFx()) {
   let dist = 0;
   if (h.speed > .5) {
     const step = h.speed * dt, nx = h.x + dx * step, ny = h.y + dy * step;
-    const ok = (x, y) => walkable(t, x, y) && walkable(t, x + dx * 6, y + dy * 6);
+    const ok = (x, y) => walkable(t, x, y) && walkable(t, x + dx * 6, y + dy * 6) && !(h.world && blocked(h.world, x, y, 5) && !blocked(h.world, h.x, h.y, 4.5));
     if (ok(nx, ny)) { h.x = nx; h.y = ny; dist = step; }
     else if (ok(nx, h.y)) { h.x = nx; dist = Math.abs(dx * step); }
     else if (ok(h.x, ny)) { h.y = ny; dist = Math.abs(dy * step); }
@@ -63,7 +72,7 @@ export function stepHero(h, input, dt, t, marks, time, fx = createFx()) {
   if (acting) {
     h.actT += dt; at = h.actT / A.dur;
     if (!h.fired && at >= A.hit) { h.fired = true; onHit(h, t, marks, time, fx); }
-    if (at >= 1) { h.actT = null; at = null; }
+    if (at >= 1) { h.actT = null; at = null; h.actKind = null; }
   }
   h.nock = h.tool === 'bow' && at != null && at > .18 && at < A.hit;
   if (h.tool === 'crossbow') h.loaded = !(at != null && at >= A.hit && at < .85);
@@ -74,7 +83,7 @@ export function stepHero(h, input, dt, t, marks, time, fx = createFx()) {
   const k1 = Math.floor((h.phase - Math.PI / 2) / Math.PI);
   const s = surfaceAt(t, h.x, h.y);
   h.water = s.water; h.surface = s.kind;
-  h.pose = pose({ speed: h.speed, phase: h.phase, time: h.time, light: h.light, wade: h.water, tool: h.tool, act: at, fishing: !!h.line });
+  h.pose = pose({ speed: h.speed, phase: h.phase, time: h.time, light: h.light, wade: h.water, tool: h.tool, actKind: h.actKind, act: at, fishing: !!h.line });
   if (k1 !== k0 && (s.kind === 'sand' || s.kind === 'mud')) {
     const left = ((k1 % 2) + 2) % 2 === 0, [x, y] = toWorld(h, h.pose.feet[left ? 0 : 1]);
     marks.prints.push({ x, y, ang: h.yaw, side: left ? 1 : -1, t0: time, mud: s.kind === 'mud' });
@@ -114,7 +123,20 @@ function onHit(h, t, marks, time, fx) {
     h.line = { state: 'fly', t: 0, fx: x, fy: y, fz: z, tx: h.x + fxv * d, ty: h.y + fyv * d, x, y, z };
     return;
   }
-  // melee: dust, sand or spray where the blow lands
+  // world objects: chop / mine / shake / pick
+  const tg = target(h);
+  if (tg) {
+    const { got } = harvest(h.world, tg, time, h.yaw), o = tg.o;
+    for (const k in got) h.inv[k] = (h.inv[k] || 0) + got[k];
+    if (Object.keys(got).length) h.got = { got, time };
+    const hx = o.x - fxv * 4, hy = o.y - fyv * 4;
+    if (tg.verb === 'chop') puff(fx, hx, hy, 10 + Math.random() * 8, 6, [.78, .62, .4], time, { up: 26, v: 30, s: .9, life: .5, g: 2 });
+    else if (tg.verb === 'mine') puff(fx, hx, hy, 6, 7, [.72, .71, .68], time, { up: 34, v: 34, s: .9, life: .45, g: 2 });
+    else if (tg.verb === 'shake') puff(fx, o.x, o.y, 60, 5, [.45, .62, .25], time, { up: -10, v: 18, s: 1.2, life: .9, g: 2 });
+    else if (o.k === 'saz' || o.k === 'bush') puff(fx, o.x, o.y, 8, 4, [.5, .65, .3], time, { up: 15, v: 14, s: 1, life: .5, g: 2 });
+    return;
+  }
+  // melee into nothing: dust, sand or spray where the blow lands
   const r = T.reach || 14, x = h.x + fxv * r, y = h.y + fyv * r, s = surfaceAt(t, x, y);
   if (s.water > 0) { puff(fx, x, y, 2, 7, [.85, .93, .97], time, { up: 40, v: 20, life: .5 }); marks.rings.push({ x, y, t0: time, s: 1.3 }); }
   else if (s.kind === 'sand') puff(fx, x, y, 1, 6, [.86, .78, .6], time);
