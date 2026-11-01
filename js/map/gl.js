@@ -15,6 +15,7 @@ uniform sampler2D uA, uB, uC, uNoise;
 uniform vec2 uRes, uCam;
 uniform float uZoom, uTime, uWorld, uDay, uCaveOn;
 uniform vec3 uLight, uLightCol, uAmb, uCave;
+uniform vec4 uTorch;                                   // x, y (world), radius, intensity — the hero's torch at night
 
 // smooth value noise from the random texture (bilinear + smoothstep trick)
 float n1(vec2 p){ vec2 i = floor(p), f = fract(p); f = f*f*(3.-2.*f); return texture2D(uNoise, (i + f + .5) / 256.).r; }
@@ -41,9 +42,15 @@ vec4 tex3(sampler2D s, vec2 uv){
   return g0.y * (g0.x * texture2D(s, h0) + g1.x * texture2D(s, vec2(h1.x, h0.y))) + g1.y * (g0.x * texture2D(s, vec2(h0.x, h1.y)) + g1.x * texture2D(s, h1));
 }
 
-vec3 shade(vec3 alb, vec3 N, float ao){
+vec3 torchL(vec3 N, vec2 p){
+  if (uTorch.w <= 0.) return vec3(0.);
+  vec2 d = uTorch.xy - p; float f = 1. - length(d) / uTorch.z; if (f <= 0.) return vec3(0.);
+  vec3 L = normalize(vec3(d, 24.));
+  return vec3(1., .6, .28) * f * f * uTorch.w * max(dot(N, L) * .75 + .25, 0.);
+}
+vec3 shade(vec3 alb, vec3 N, float ao, vec2 p){
   float d = dot(N, uLight);
-  return alb * (uAmb * ao + uLightCol * max(d * .85 + .15, 0.));
+  return alb * (uAmb * ao + uLightCol * max(d * .85 + .15, 0.) + torchL(N, p));
 }
 
 void main(){
@@ -144,7 +151,7 @@ void main(){
   vec3 N = normalize(vec3(N0.xy + bump, N0.z));
   float ao = .8 + .2 * smoothstep(.2, .8, g2);
   ao *= mix(1., .55 + .45 * crack, rocky * mid);
-  vec3 col = shade(alb, N, ao);
+  vec3 col = shade(alb, N, ao, p);
 
   // ---------------- river ----------------
   float rivW = smoothstep(.42, .6, riv + (g3 - .5) * .08);
@@ -162,6 +169,7 @@ void main(){
     float rap = smoothstep(.7, .9, n1(q * .2 + 3.)) * smoothstep(.08, .3, slope);                     // white water on steep stretches
     float edgeF = (1. - smoothstep(.45, .58, riv)) * .6 * (.5 + .5 * n1(q * .4));
     rcol = mix(rcol, vec3(.9, .94, .94) * (uAmb + uLightCol * .8), clamp(rap * .8 + edgeF * .35, 0., .85));
+    rcol += rc * torchL(wn, p) * .9;
     col = mix(col, rcol, isRiv);
   }
 
@@ -187,6 +195,7 @@ void main(){
     float surf = smoothstep(.35, .7, feat) * smoothstep(.6, .9, n1(p * .1 + vec2(t * .4, t * .1)));
     float foam = clamp(edge * (.5 + .5 * n1(p * .5 + t * .3)) + waves * (.4 + .6 * n1(p * .18 + t)) + surf * .6, 0., 1.);
     scol = mix(scol, vec3(.94, .97, .98) * (uAmb + uLightCol * .85), foam * .85);
+    scol += wc * torchL(wn, p) * .8;
     col = mix(col, scol, isSea);
   }
 
@@ -233,7 +242,7 @@ export function lighting(tod) {
 
 export class MapGL {
   constructor(canvas) {
-    const gl = canvas.getContext('webgl', { antialias: false, alpha: false, depth: false, powerPreference: 'high-performance' });
+    const gl = canvas.getContext('webgl', { antialias: false, alpha: false, depth: true, stencil: true, powerPreference: 'high-performance' });
     if (!gl) throw new Error('WebGL yok');
     this.gl = gl; this.cv = canvas;
     const pr = gl.createProgram();
@@ -243,8 +252,9 @@ export class MapGL {
     const buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buf);
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
     const loc = gl.getAttribLocation(pr, 'a'); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+    this.buf = buf; this.loc = loc; this.torch = [0, 0, 0, 0];
     this.u = {};
-    for (const n of ['uA', 'uB', 'uC', 'uNoise', 'uRes', 'uCam', 'uZoom', 'uTime', 'uWorld', 'uDay', 'uCaveOn', 'uLight', 'uLightCol', 'uAmb', 'uCave']) this.u[n] = gl.getUniformLocation(pr, n);
+    for (const n of ['uA', 'uB', 'uC', 'uNoise', 'uRes', 'uCam', 'uZoom', 'uTime', 'uWorld', 'uDay', 'uCaveOn', 'uLight', 'uLightCol', 'uAmb', 'uCave', 'uTorch']) this.u[n] = gl.getUniformLocation(pr, n);
     // random noise texture (repeats; the shader smooths it into value noise)
     const r = mulberry32(1234), nz = new Uint8Array(256 * 256 * 4); for (let i = 0; i < nz.length; i++) nz[i] = (r() * 256) | 0;
     this.tex = [this.texture(256, nz, true), null, null, null];
@@ -271,11 +281,15 @@ export class MapGL {
   /** cam: {x, y, zoom (css px per world unit)}, scale: device px per css px, time: seconds, tod: 0..1 */
   draw(cam, scale, time, tod) {
     const gl = this.gl, W = this.cv.width, H = this.cv.height, lt = lighting(tod);
-    gl.viewport(0, 0, W, H);
+    gl.viewport(0, 0, W, H); gl.useProgram(this.pr);                       // other renderers share this context
+    gl.disable(gl.DEPTH_TEST); gl.disable(gl.BLEND); gl.disable(gl.STENCIL_TEST);
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.buf); gl.enableVertexAttribArray(this.loc); gl.vertexAttribPointer(this.loc, 2, gl.FLOAT, false, 0, 0);
+    gl.uniform4fv(this.u.uTorch, this.torch);
     for (let k = 0; k < 4; k++) { gl.activeTexture(gl.TEXTURE0 + k); gl.bindTexture(gl.TEXTURE_2D, this.tex[k]); }
     gl.uniform2f(this.u.uRes, W, H); gl.uniform2f(this.u.uCam, cam.x, cam.y); gl.uniform1f(this.u.uZoom, cam.zoom * scale);
     gl.uniform1f(this.u.uTime, time % 1000); gl.uniform1f(this.u.uDay, lt.day);
     gl.uniform3fv(this.u.uLight, lt.L); gl.uniform3fv(this.u.uLightCol, lt.lightCol); gl.uniform3fv(this.u.uAmb, lt.amb);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
+    return lt;
   }
 }

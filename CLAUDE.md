@@ -31,6 +31,13 @@ js/map/terrain.js     island generator v2 (256² cells × 16 units): beaches/cli
 js/map/gl.js          WebGL1 ground shader (materials, sun/moon, sea, river, cave) + lighting(tod)
 js/map/viewer.js      pan/pinch/wheel, fly-to buttons, time slider, adaptive resolution; window.__MAP for tests
 tools/maptest.mjs     headless checks of the generator (+ --ppm preview)
+ada.html              NEW PLAY PAGE (step 2): the 3D hero walking on the GPU map (joystick, time slider for testing)
+js/map/sample.js      CPU terrain queries: field(), surfaceAt() (sea/river/sand/mud/rock/trail/grass + water depth), walkable, speedFactor
+js/hero/model.js      procedural 3D castaway: ellipsoid meshes on a 15-bone skeleton, pose() = walk/run/idle/torch, grounded feet
+js/hero/render.js     HeroGL: footprints, water rings, stencil sun shadow, lit model (oblique 3/4 view), torch flame
+js/play/hero.js       hero sim (input → speed/turn → collision → gait, prints, rings) — node-testable
+js/play/main.js       ada.html loop: joystick, pinch zoom, camera follow, torch light → terrain uniform uTorch
+tools/herotest.mjs    headless checks of model + walking (grounding, sea/cliff blocking, prints, rings, trail to cave)
 ```
 
 ## Controls (owner's design — keep it this way)
@@ -97,6 +104,15 @@ tools/maptest.mjs     headless checks of the generator (+ --ppm preview)
 - Test: `node tools/maptest.mjs`; screenshots need Chrome with `--use-angle=swiftshader --enable-unsafe-swiftshader`
   (software GL is ~15 fps; set the camera with `__MAP.flyTo(x, y, zoom, false)`).
 
+## New hero (step 2, owner chose: 3D model, virtual joystick, sun shadow, wading, footprints, night torch)
+- Hero ≈ 33 units tall; WALK 62 / RUN 125 u/s (stick > 0.8 = run). Joystick appears where the left 60 % of the screen is touched;
+  the right side is kept free for a future action button. Keyboard: WASD/arrows, Shift = run.
+- Projection of the model: screen = (x, y·KY − z·KZ) around the feet (KY .55, KZ .92); the ground stays top-down.
+  World axes x right, y south, z up; model x right, y forward → yawMatrix mirrors handedness, so face culling is never used.
+- Shadow = model flattened along the sun vector, stencil so it darkens once. Torch at night (before 05:45 / after 19:15):
+  flame sprites + `mapgl.torch` (x, y, radius 150, intensity) lights the terrain and the hero.
+- Wading: sea shallower than WADE_MAX (.03) and rivers are walkable but slow; deeper sea blocks. Cliff coast (K>.55 + steep) blocks.
+
 ## Roadmap (agreed with the owner)
 1. ✅ Bag 16 slots × 20, tool durability, rope, chest
 2. ✅ Fishing (bite mini-game), bow + arrows + rabbits, timed cooking, raw-food sickness, canteen
@@ -106,6 +122,6 @@ tools/maptest.mjs     headless checks of the generator (+ --ppm preview)
 4. ✅ Boars, shipwreck crates, bandage
 5. ✅ v8: smooth hills + few crags (replaced plateaus/ramps — owner found them wall-like), detailed pixel ground,
    craft icon grid by level, home sheet + Kulübe → Baraka upgrade
-6. IN PROGRESS: new realistic map (map.html) → then characters → then move objects/gameplay onto it
+6. IN PROGRESS: ✅ new realistic map (map.html) → ✅ 3D hero (ada.html) → next: objects/gameplay onto it
 7. Later ideas: underground map behind the cave, 3rd home level (Ev), iron/ore on mountain tops, energy bar, weather (rain/storm puts out fires), farming, sounds, minimap
 Goal is endless survival with a day record (no escape ending).
