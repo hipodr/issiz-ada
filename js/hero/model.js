@@ -166,10 +166,10 @@ export function pose(st) {
     const local = M4.mul(M4.T(...j), R[name] || M4.id());
     W[i] = parent < 0 ? local : M4.mul(W[parent], local);
   });
-  // grounding: lower the whole body so the lower foot's sole sits on z = 0
+  // whole-body turn (archer stance) + grounding: lower the whole body so the lower foot's sole sits on z = 0
   const sole = f => Math.min(M4.apply(W[f], 0, 2.6, -1.4)[2], M4.apply(W[f], 0, -.8, -1.4)[2], M4.apply(W[f], 0, .9, -1.6)[2]);
   const dz = -Math.min(sole(BONE.footL), sole(BONE.footR));
-  const G = M4.T(0, 0, dz);
+  const G = M4.mul(M4.T(0, 0, dz), M4.RZ(P.by));
   for (let i = 0; i < W.length; i++) W[i] = M4.mul(G, W[i]);
   const light = st.light === 'lantern' ? M4.apply(W[BONE.lantern], 0, 0, -3.6) : M4.apply(W[BONE.torch], 0, 0, 7.6);
   const feet = [M4.apply(W[BONE.footL], 0, .9, -1.5), M4.apply(W[BONE.footR], 0, .9, -1.5)];

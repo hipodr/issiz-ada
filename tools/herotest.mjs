@@ -70,6 +70,10 @@ for (const seed of [1, 42, 777, 20261101]) {
       maxTip = Math.max(maxTip, h.pose.pts.tip[2]);
     }
     ok(!bad && h.actT == null, `${id}: action plays to the end (${TOOLS[id].act.dur}s), pose stays finite`);
+    if (id === 'bow') for (const at of [.3, .55, .6]) {                                  // the nocked arrow points where he faces
+      const p = pose({ tool: 'bow', act: at }), g = p.pts.bowGrip, r = p.pts.handR, off = Math.atan2(g[0] - r[0], g[1] - r[1]) * 180 / Math.PI;
+      ok(Math.abs(off) < 5, `bow at ${at}: arrow ${off.toFixed(1)}° off the facing direction`);
+    }
     if (TOOLS[id].shoots) ok(fx.projectiles.length === 1 && fx.projectiles[0].stuck, `${id}: ${TOOLS[id].shoots} flies and sticks in the ground`);
     if (['axe', 'pick'].includes(id)) ok(maxTip > 30, `${id}: raised overhead during the swing (tip z ${maxTip.toFixed(0)})`);
     if (id === 'rod') {

@@ -5,7 +5,8 @@
 // w0 = -π/2 makes it continue straight out of the fist (along the forearm).
 //
 // Pose keys (all optional, missing → the tool's carry pose):  sR/sL = [pitch, out]  shoulder (pitch + forward/up,
-// out + raises the arm sideways), eR/eL = elbow bend, wR/wL = [x, y, z] grip rotation, tw = torso twist (+ turns left), ln = lean.
+// out + raises the arm sideways), eR/eL = elbow bend, wR/wL = [x, y, z] grip rotation, tw = torso twist (+ turns left), ln = lean,
+// by = whole-body turn (+ left; an archer stands side-on while the aim stays on the facing direction).
 // Action: { dur (s), keys: [[t 0..1, pose]...], hit: t of the impact / release, move: speed factor while acting, label }
 import { ellipsoid, cyl, box } from './geom.js';
 
@@ -118,10 +119,12 @@ export const TOOLS = {
       [.62, { sR: [.85, .1], eR: .1, wR: [-2.18, -0.06, 0], ln: .32 }], [.8, { sR: [.7, .1], eR: .25, wR: [-2.38, -0.06, 0], ln: .22 }], [1, {}]] } },
   bow: { name: 'Yay', hand: 'L', two: true, label: 'Ok at', shoots: 'arrow',
     carry: { sL: [.1, .12], eL: .35, wL: [1.02, -0.1, 0] },
-    act: { dur: 1.1, hit: .62, move: .35, keys: [[0, {}], [.22, { sL: [1.5, -.05], eL: .05, wL: [0.02, 0.02, 0], sR: [1.45, -.12], eR: .35, tw: .35 }],
-      [.55, { sL: [1.5, -.05], eL: .03, wL: [0.06, 0.02, 0], sR: [1.42, .55], eR: 2.35, tw: .4 }],
-      [.62, { sL: [1.52, -.05], eL: .03, wL: [0.04, 0.02, 0], sR: [1.3, .75], eR: 2.55, tw: .4 }],
-      [.8, { sL: [1.4, -.05], eL: .1, wL: [0.04, 0.02, 0], sR: [1.1, .5], eR: 1.8, tw: .35 }], [1, {}]] } },
+    // solved so the arrow (right hand → bow grip) stays parallel to the facing direction: it flies where he looks
+    act: { dur: 1.1, hit: .62, move: .35, keys: [[0, {}],
+      [.22, { by: -.4, tw: -.27, sL: [1.51, .35], eL: .3, wL: [-0.26, -0.02, 0], sR: [1.5, -.98], eR: .3 }],
+      [.55, { by: -.18, tw: -.35, sL: [1.56, -.13], eL: .3, wL: [-0.3, 0.02, 0], sR: [1.85, -1.0], eR: 2.7 }],
+      [.62, { by: -.38, tw: -.35, sL: [1.6, .22], eL: .3, wL: [-0.34, 0.02, 0], sR: [2.0, -1.0], eR: 2.61 }],
+      [.8, { by: -.99, tw: -.18, sL: [1.32, .73], eL: 0, wL: [0.02, -0.22, 0], sR: [.91, -1.0], eR: .3 }], [1, {}]] } },
   crossbow: { name: 'Arbalet', hand: 'R', two: true, label: 'Ateş', shoots: 'bolt',
     carry: { sR: [.12, .08], eR: .95, wR: [-1.98, -0.06, 0], sL: [.35, -.15], eL: 1.05 },
     act: { dur: 1.5, hit: .2, move: .35, keys: [[0, {}], [.14, { sR: [1.3, .05], eR: .25, wR: [-1.54, 0.02, 0], sL: [1.35, -.3], eL: .45, tw: .1 }],
@@ -140,7 +143,7 @@ export const TOOL_IDS = Object.keys(TOOLS);
 
 const lerp = (a, b, t) => a + (b - a) * t;
 const ease = t => t * t * (3 - 2 * t);
-const POSE_KEYS = { sR: [.08, .1], eR: .3, wR: [0, 0, 0], sL: [.08, .1], eL: .3, wL: [0, 0, 0], tw: 0, ln: 0 };
+const POSE_KEYS = { sR: [.08, .1], eR: .3, wR: [0, 0, 0], sL: [.08, .1], eL: .3, wL: [0, 0, 0], tw: 0, ln: 0, by: 0 };
 const fill = (p, base) => { const o = {}; for (const k in POSE_KEYS) o[k] = p[k] !== undefined ? p[k] : base[k] !== undefined ? base[k] : POSE_KEYS[k]; return o; };
 const mixPose = (a, b, t) => { const o = {}; for (const k in a) o[k] = Array.isArray(a[k]) ? a[k].map((v, i) => lerp(v, b[k][i], t)) : lerp(a[k], b[k], t); return o; };
 
