@@ -17,16 +17,26 @@ export async function loadHero(loader, url = 'assets/hero/captain.glb', height =
   const mixer = new THREE.AnimationMixer(model), clip = n => gl.animations.find(a => a.name.endsWith('|' + n) || a.name === n);
   const act = {};
   for (const n of ['Idle', 'Walk', 'Run', 'Wave']) { const c = clip(n); if (c) { act[n] = mixer.clipAction(c); act[n].play(); act[n].setEffectiveWeight(n === 'Idle' ? 1 : 0); } }
-  let yaw = 0, speed = 0;
+  let yaw = 0, speed = 0, shot = null, lw = 1;                // shot = one-shot action (wave, slash…); lw = locomotion weight 0..1
+  mixer.addEventListener('finished', e => { if (e.action === shot && !shot.hold) shot = null; });
   const hero = {
     obj, get speed() { return speed; }, anims: gl.animations.map(a => a.name.split('|').pop()),
+    // play a clip once over the locomotion; hold = stay on the last frame (death) until the stick moves
+    play(name, hold = false) {
+      const c = clip(name); if (!c) return false;
+      if (shot) shot.fadeOut(.15);
+      shot = mixer.clipAction(c); shot.hold = hold; shot.reset().setLoop(THREE.LoopOnce, 1); shot.clampWhenFinished = true; shot.setEffectiveWeight(1).fadeIn(.2).play();
+      return true;
+    },
     update(input, dt, walkable) {
       const m = Math.min(1, Math.hypot(input.x, input.y));
+      if (shot && m >= .12) { shot.fadeOut(.25); shot = null; }       // moving cancels the one-shot
+      lw += ((shot ? 0 : 1) - lw) * Math.min(1, dt * 8);
       const target = m < .12 ? 0 : m < .8 ? WALK * Math.min(1, (m - .12) / .5 + .3) : RUN;
       speed += Math.max(-14 * dt, Math.min(10 * dt, target - speed));
-      if (m >= .12) {
-        const want = Math.atan2(input.x, input.y);                                    // model faces +z; screen down = +z
-        let d = want - yaw; d = Math.atan2(Math.sin(d), Math.cos(d)); yaw += d * Math.min(1, dt * 12);
+      if (m >= .12 || input.face !== undefined) {
+        const want = m >= .12 ? Math.atan2(input.x, input.y) : input.face;               // face: idle close-up turns to the camera                                    // model faces +z; screen down = +z
+        let d = want - yaw; d = Math.atan2(Math.sin(d), Math.cos(d)); yaw += d * Math.min(1, dt * (m >= .12 ? 12 : 3));
       }
       if (speed > .05) {
         const dx = Math.sin(yaw) * speed * dt, dz = Math.cos(yaw) * speed * dt, p = obj.position, ok = (x, z) => walkable(x, z) && walkable(x + Math.sin(yaw) * .45, z + Math.cos(yaw) * .45);
@@ -38,9 +48,9 @@ export async function loadHero(loader, url = 'assets/hero/captain.glb', height =
       obj.rotation.y = yaw;
       // blend weights: idle → walk → run
       const w = Math.min(1, speed / WALK), r = Math.max(0, Math.min(1, (speed - WALK) / (RUN - WALK)));
-      if (act.Idle) act.Idle.setEffectiveWeight(1 - w);
-      if (act.Walk) { act.Walk.setEffectiveWeight(w * (1 - r)); act.Walk.timeScale = Math.max(.6, Math.min(1.3, speed / WALK)); }
-      if (act.Run) { act.Run.setEffectiveWeight(r); act.Run.timeScale = Math.max(.8, speed / RUN); }
+      if (act.Idle) act.Idle.setEffectiveWeight((1 - w) * lw);
+      if (act.Walk) { act.Walk.setEffectiveWeight(w * (1 - r) * lw); act.Walk.timeScale = Math.max(.6, Math.min(1.3, speed / WALK)); }
+      if (act.Run) { act.Run.setEffectiveWeight(r * lw); act.Run.timeScale = Math.max(.8, speed / RUN); }
       mixer.update(dt);
     },
   };

@@ -21,6 +21,10 @@ html,body{height:100%;margin:0;background:#2a5d78;color:#f6f0e1;font:600 14px/1.
 #stick.run{border-color:#ffb347} #stick.run #knob{background:#ffb347}
 #grid{position:fixed;right:12px;top:calc(34px + env(safe-area-inset-top));padding:8px 12px;border:0;border-radius:12px;background:rgba(10,24,32,.6);color:#f6f0e1;font:inherit}
 #grid.off{opacity:.55}
+#animBtn{position:fixed;right:12px;top:calc(76px + env(safe-area-inset-top));padding:8px 12px;border:0;border-radius:12px;background:rgba(10,24,32,.6);color:#f6f0e1;font:inherit}
+#anims{position:fixed;right:12px;top:calc(118px + env(safe-area-inset-top));display:grid;grid-template-columns:1fr 1fr;gap:6px;width:170px}
+#anims button{padding:9px 6px;border:0;border-radius:10px;background:rgba(10,24,32,.7);color:#f6f0e1;font:inherit;font-size:13px}
+#anims button:active{background:#ffb347;color:#1a1a1a}
 #busy{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);padding:12px 18px;border-radius:14px;background:rgba(10,24,32,.75)}
 </style>
 <script type="importmap">{"imports":{"three":"./vendor/three/three.module.min.js","three/addons/":"./vendor/three/addons/"}}</script>
@@ -30,9 +34,11 @@ html,body{height:100%;margin:0;background:#2a5d78;color:#f6f0e1;font:600 14px/1.
 <div id="title"><b>Elli Ada</b><small>Ada 1 · demo</small></div>
 <div id="fps"></div>
 <div id="stick"><div id="knob"></div></div>
-<div id="hint">Ekranın sol tarafına dokunup sürükle: yürü · sonuna kadar it: koş · iki parmak: yakınlaştır</div>
+<div id="hint">Sol taraf: yürü (sonuna kadar it: koş) · sağ taraf: kamerayı döndür · iki parmak: yakınlaştır</div>
 <button id="grid">⬡ Altıgen</button>
+<button id="animBtn">🎬 Hareket</button>
+<div id="anims" hidden></div>
 <div id="busy">Ada yükleniyor…</div>
-<script type="module" src="js/main.js?v=13"></script>
+<script type="module" src="js/main.js?v=15"></script>
 </body>
 </html>

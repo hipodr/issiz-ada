@@ -45,19 +45,31 @@ scene.traverse(o => { if (o.isLight) o.layers.enable(1); });   // captain lives 
 const ghost = new THREE.MeshBasicMaterial({ color: 0xffd27a, transparent: true, opacity: .45, depthFunc: THREE.GreaterDepth, depthWrite: false });
 const input = makeInput($('cv'), $('stick'), $('knob'));
 let grid = false; $('grid').classList.add('off'); $('grid').onclick = () => { grid = !grid; island.material.grid(grid ? .8 : 0); $('grid').classList.toggle('off', !grid); };
-let dist = 15;
-input.onPinch = f => { dist = Math.max(7, Math.min(40, dist / f)); };
+// camera: dist 2.2 m (face to face, almost level) … 22 m (overview, ~47° down); right-side drag turns it around the captain
+let dist = 14, camYaw = 0, idleT = 0;
+input.onPinch = f => { dist = Math.max(2.2, Math.min(22, dist / f)); };
+input.onOrbit = dx => { camYaw -= dx * 4; };
+// animation test panel
+const ANIMS = [['Selam', 'Wave'], ['Al', 'Interact'], ['Kılıç', 'Sword_Slash'], ['Ateş', 'Gun_Shoot'], ['Nişan', 'Idle_Gun'], ['Takla', 'Roll'], ['Darbe', 'HitRecieve'], ['Ölüm', 'Death'], ['Avaturn', 'Avaturn_avaturn_animation']];
+$('anims').innerHTML = ANIMS.filter(([, n]) => hero.anims.includes(n)).map(([l, n]) => `<button data-a="${n}">${l}</button>`).join('');
+$('anims').onclick = e => { const n = e.target.dataset?.a; if (n) hero.play(n, n === 'Death'); };
+$('animBtn').onclick = () => { $('anims').hidden = !$('anims').hidden; };
 $('busy').hidden = true;
 
 const camTarget = hero.obj.position.clone();
 let last = performance.now(), frames = 0, fpsT = 0, slowT = 0;
 function frame(now) {
   const dt = Math.min(.05, (now - last) / 1000); last = now; const t = now / 1000;
-  hero.update(input.get(), dt, island.walkable);
+  const iv = input.get(), cs = Math.cos(camYaw), sn = Math.sin(camYaw);             // stick is screen-relative → rotate by camera yaw
+  idleT = Math.hypot(iv.x, iv.y) < .12 ? idleT + dt : 0;
+  const face = dist < 5 && idleT > .8 ? camYaw : undefined;                           // close-up and idle: look at the camera
+  hero.update({ x: iv.x * cs + iv.y * sn, y: -iv.x * sn + iv.y * cs, face }, dt, island.walkable);
   const p = hero.obj.position; p.y += (island.heightAt(p.x, p.z) - p.y) * Math.min(1, dt * 20);
   camTarget.lerp(p, 1 - Math.exp(-dt * 6));
-  camera.position.set(camTarget.x, camTarget.y + dist * .74, camTarget.z + dist * .68);
-  camera.lookAt(camTarget.x, camTarget.y + .6, camTarget.z);
+  const k = THREE.MathUtils.smoothstep(dist, 2.2, 14), pitch = THREE.MathUtils.lerp(.12, .82, k), lookY = THREE.MathUtils.lerp(1.55, .6, k);
+  const hd = dist * Math.cos(pitch);
+  camera.position.set(camTarget.x + Math.sin(camYaw) * hd, camTarget.y + lookY + dist * Math.sin(pitch), camTarget.z + Math.cos(camYaw) * hd);
+  camera.lookAt(camTarget.x, camTarget.y + lookY, camTarget.z);
   sun.position.copy(camTarget).addScaledVector(sunDir, 60); sun.target.position.copy(camTarget);   // shadows follow the hero
   water.update(t); nature.update(camTarget);
   // 1) world without the captain, 2) his hidden parts as a gold ghost, 3) the captain himself
@@ -71,4 +83,4 @@ function frame(now) {
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
-window.__DEMO = { camTarget, nature, hero, island, camera, setDist: d => { dist = d; }, input };
+window.__DEMO = { setYaw: v => { camYaw = v; }, camTarget, nature, hero, island, camera, setDist: d => { dist = d; }, input };
