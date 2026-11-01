@@ -1,7 +1,4 @@
-# Issız Ada
+# Issız Ada — yeniden başlıyor
 
-Telefonda oynanan 2D ada hayatta kalma oyunu (PWA). Topla, üret, avlan, balık tut, hayatta kal.
-
-Oyna: https://hipodr.github.io/issiz-ada/
-
-Geliştirici notları: CLAUDE.md · Test: `node tools/smoke.mjs`
+Yeni oyun: gemiyle adalara gelen bir kaptan, kahramanın içinde taşınan ordu, kurulan kamplar ve kabilelerle savaşlar.
+Eski hayatta kalma oyunu `eski-oyun` dalında duruyor.

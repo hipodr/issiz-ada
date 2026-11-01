@@ -1,6 +1,0 @@
-{
-  "name": "issiz-ada",
-  "private": true,
-  "type": "module",
-  "scripts": { "test": "node tools/smoke.mjs" }
-}
