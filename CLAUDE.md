@@ -18,7 +18,7 @@ Design doc: Claude Docs "Elli Ada — Oyun Tasarım Özeti". User speaks Turkish
 - `assets/ground/` ambientCG (CC0) textures, layer index = file number, see SOURCES.txt.
 - `assets/hex/` Kenney Hexagon Kit (CC0); only unit-tree and the ship are used now. `Textures/colormap.png` is recoloured: teal greens → natural green.
 - `assets/hero/adventurer.glb`, `assets/buildings/barracks.glb` — Quaternius (CC0).
-- `assets/hero/captain.glb` — the user's own Avaturn avatar (v2: separate head/eyes; face blendshapes stripped to save 9 MB) (Mixamo-style rig: Hips, Spine, LeftArm…) with Adventurer clips retargeted offline (world-space rotation deltas against BIND poses from inverse bind matrices; GLTFLoader strips dots from names: `UpperArm.L` → `UpperArmL`), exported with GLTFExporter, textures 1024 webp. `?hero=adv` loads the Adventurer instead.
+- `assets/hero/captain.glb` — the user's own Avaturn avatar (v2: separate head/eyes; face blendshapes cut to blink/smile/jaw/brow, weight channels remapped — keepmorph.mjs idea) (Mixamo-style rig: Hips, Spine, LeftArm…) with Adventurer clips retargeted offline (world-space rotation deltas against BIND poses from inverse bind matrices; GLTFLoader strips dots from names: `UpperArm.L` → `UpperArmL`), exported with GLTFExporter, textures 1024 webp. `?hero=adv` loads the Adventurer instead.
 
 ## Testing
 Playwright + `/usr/bin/google-chrome --use-angle=swiftshader --enable-unsafe-swiftshader`, open `?debug&lite`, long timeouts (swiftshader is slow). Drive the hero via `__DEMO.input.auto = {x, y}`; teleport with `__DEMO.hero.obj.position.set()` + `__DEMO.camTarget.set()` (the camera lerp is slow under swiftshader).
