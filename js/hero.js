@@ -5,7 +5,7 @@
 // Output: hero.obj (THREE.Group at the feet), hero.update(input, dt, walkable)
 import * as THREE from 'three';
 
-export const WALK = 3.2, RUN = 7;                // m/s
+export const WALK = 1.6, RUN = 3.5;                // m/s
 
 export async function loadHero(loader, height = 1.75) {
   const gl = await new Promise((res, rej) => loader.load('assets/hero/adventurer.glb', res, undefined, rej));

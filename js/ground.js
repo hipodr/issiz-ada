@@ -28,7 +28,7 @@ export async function makeGroundMaterial(lite) {
   const [tC, tN] = await Promise.all([loadArray('c', lite ? 512 : 1024), loadArray('n', lite ? 256 : 512)]);
   tC.colorSpace = THREE.SRGBColorSpace;
   const mat = new THREE.MeshStandardMaterial({ roughness: .95, metalness: 0 });
-  const U = { tC: { value: tC }, tN: { value: tN }, uGrid: { value: .8 } };
+  const U = { tC: { value: tC }, tN: { value: tN }, uGrid: { value: 0 } };
   mat.grid = v => { U.uGrid.value = v; };
   mat.onBeforeCompile = sh => {
     Object.assign(sh.uniforms, U);

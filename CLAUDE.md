@@ -8,8 +8,9 @@ Design doc: Claude Docs "Elli Ada — Oyun Tasarım Özeti". User speaks Turkish
 - `js/main.js` — renderer, lights, camera follow, loop, `?debug` (fps), `?lite` (half res, for software-GL tests), `window.__DEMO` test hook.
 - `js/island.js` — continuous terrain (grid 0.5 m): coast field → height → 9 splat weights per vertex; trees; `heightAt`, `walkable`, `block`; land mask for the water shader (canvas row 0 = +z, CanvasTexture flips Y). Hex grid (pointy-top, tile 2 m) is game logic (`hexAt`, `hexCenter`).
 - `js/ground.js` — ground material: MeshStandardMaterial + onBeforeCompile, DataArrayTexture colour 1024²×9 / normal 512²×9, anti-tiling, hex-line overlay (`material.grid(v)`, HUD button).
+- `js/nature.js` — vegetation/rocks/path stones from `assets/nature/nature.glb` (Quaternius Stylized Nature MegaKit, merged+deduped+512 webp+quantized with gltf-transform; leaf textures colour-bled). Rule-based scatter, InstancedMesh per 24 m chunk × model part; small props hidden beyond 45 m. Geometry is quantized: keep each node's matrix (`part.base`), never bake it (int16 clamps). Leaves: transparent + alphaTest .3 + depthWrite.
 - `js/water.js` — sea ShaderMaterial (depth from blurred land mask, foam). Fog chunks must sit on their own lines.
-- `js/hero.js` — Quaternius Adventurer, 1.75 m, Idle/Walk/Run blend.
+- `js/hero.js` — Quaternius Adventurer, 1.75 m, Idle/Walk/Run blend, walk 1.6 m/s, run 3.5 m/s. Rendered on layer 1 only: main.js draws world, then a gold ghost (GreaterDepth) for hidden parts, then the captain; lights and the shadow camera have layer 1 enabled.
 - `js/input.js` — floating joystick (left 60 %), pinch zoom, WASD + Shift.
 
 ## Assets (all downloaded, not modelled in code)
@@ -18,4 +19,4 @@ Design doc: Claude Docs "Elli Ada — Oyun Tasarım Özeti". User speaks Turkish
 - `assets/hero/adventurer.glb`, `assets/buildings/barracks.glb` — Quaternius (CC0).
 
 ## Testing
-Playwright + `/usr/bin/google-chrome --use-angle=swiftshader --enable-unsafe-swiftshader`, open `?debug&lite`, long timeouts (swiftshader is slow). Drive the hero via `__DEMO.input.auto = {x, y}`.
+Playwright + `/usr/bin/google-chrome --use-angle=swiftshader --enable-unsafe-swiftshader`, open `?debug&lite`, long timeouts (swiftshader is slow). Drive the hero via `__DEMO.input.auto = {x, y}`; teleport with `__DEMO.hero.obj.position.set()` + `__DEMO.camTarget.set()` (the camera lerp is slow under swiftshader).

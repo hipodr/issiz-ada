@@ -4,7 +4,7 @@
 // Process: coast field e(x,z) [m, >0 = land] from a noisy radius + landing bay in the south (+z)
 //          → height h(x,z) [m]: beach slope, rolling ground, a mountain (NE), a few hills, flattened village + camp
 //          → splat weights per vertex (9 layers, see ground.js) from coast distance, slope, height, regions, noise
-//          → terrain mesh (grid step 0.5 m) + trees (Kenney, instanced) on forest ground
+//          → terrain mesh (grid step 0.5 m); vegetation and rocks are scattered by nature.js
 // Output: { group, heightAt(x,z), walkable(x,z), block(x,z,r), mask(canvas), span, spawn, shipPos, camp, material, RAD }
 import * as THREE from 'three';
 import { makeGroundMaterial, LAYERS } from './ground.js';
@@ -50,9 +50,18 @@ export async function buildIsland(loader, seed = 11, lite = false) {
   const CAMP = [-8, beachZ - 12];
   const hills = []; for (let i = 0; i < 7; i++) { const a = R() * 6.28, d = 12 + R() * 26, p = [Math.cos(a) * d, Math.sin(a) * d]; if (coast(...p) > 10 && Math.hypot(p[0] - CAMP[0], p[1] - CAMP[1]) > 14) hills.push(p); }
 
+  // dirt path: landing beach → camp → village (Catmull-Rom through control points, ~1 m steps)
+  const ctrl = [[0, beachZ - 1], [-1, beachZ - 8], [-1.5, CAMP[1] - 2], [2, CAMP[1] - 12], [-2, -12], [-5, -26], [VILLAGE[0], VILLAGE[1] + 5]], path = [];
+  for (let k = 0; k < ctrl.length - 1; k++) {
+    const p0 = ctrl[Math.max(0, k - 1)], p1 = ctrl[k], p2 = ctrl[k + 1], p3 = ctrl[Math.min(ctrl.length - 1, k + 2)], n = Math.ceil(Math.hypot(p2[0] - p1[0], p2[1] - p1[1]));
+    for (let i = 0; i < n; i++) { const t = i / n, t2 = t * t, t3 = t2 * t, c = (a, b, c, d) => .5 * (2 * b + (-a + c) * t + (2 * a - 5 * b + 4 * c - d) * t2 + (-a + 3 * b - 3 * c + d) * t3); path.push([c(p0[0], p1[0], p2[0], p3[0]), c(p0[1], p1[1], p2[1], p3[1])]); }
+  }
+  path.push(ctrl[ctrl.length - 1]);
+  const pathDist = (x, z) => { let d = 1e9; for (let i = 0; i < path.length - 1; i++) { const [ax, az] = path[i], [bx, bz] = path[i + 1], dx = bx - ax, dz = bz - az, t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / (dx * dx + dz * dz || 1))); d = Math.min(d, Math.hypot(x - ax - dx * t, z - az - dz * t)); } return d; };
+
   const rawH = (x, z) => {
     const e = coast(x, z);
-    let h = e < 0 ? Math.max(-4, e * .45) + .22 : .22 + .5 * sstep(0, 6, e);
+    let h = e < 0 ? Math.max(-4, e * .7) + .22 : .22 + .5 * sstep(0, 6, e);
     const inland = sstep(3, 14, e);
     h += (fbm(x * .05, z * .05) - .4) * 2.2 * inland;
     const dm = Math.hypot(x - MTN[0], z - MTN[1]);
@@ -78,17 +87,19 @@ export async function buildIsland(loader, seed = 11, lite = false) {
   };
   const slopeAt = (x, z) => Math.hypot(heightAt(x + .5, z) - heightAt(x - .5, z), heightAt(x, z + .5) - heightAt(x, z - .5));
 
+  const forestAt0 = (x, z) => Math.hypot(x - FOREST[0], z - FOREST[1]) + (fbm(x * .1, z * .1) - .5) * 10;
   const geo = new THREE.PlaneGeometry(HALF * 2, HALF * 2, N - 1, N - 1); geo.rotateX(-Math.PI / 2);
   const pos = geo.attributes.position, w0 = new Float32Array(N * N * 4), w1 = new Float32Array(N * N * 4), w2 = new Float32Array(N * N);
-  const forestAt = (x, z) => Math.hypot(x - FOREST[0], z - FOREST[1]) + (fbm(x * .1, z * .1) - .5) * 10;
   for (let v = 0; v < pos.count; v++) {
     const x = pos.getX(v), z = pos.getZ(v), i = Math.round((x + HALF) / STEP), j = Math.round((z + HALF) / STEP), h = H[j * N + i];
     pos.setY(v, h);
     const e = coast(x, z), sl = slopeAt(x, z), n1 = fbm(x * .12 + 7, z * .12), n2 = fbm(x * .3 - 3, z * .3 + 9);
     const W = new Float32Array(LAYERS); W[0] = 1;
     const over = (k, a) => { a = Math.max(0, Math.min(1, a)); for (let q = 0; q < LAYERS; q++) W[q] *= 1 - a; W[k] += a; };
-    over(1, sstep(.55, .75, n1) + sstep(24, 12, forestAt(x, z)) * .85);             // grass-dirt patches + forest floor
+    over(1, sstep(.55, .75, n1) + sstep(24, 12, forestAt0(x, z)) * .85);             // grass-dirt patches + forest floor
     over(3, sstep(.18, .4, sl) + sstep(26, 14, Math.hypot(x - MTN[0], z - MTN[1])) * .7);   // rocky dirt on slopes / foothills
+    const pd = pathDist(x, z) + (n2 - .5) * .8;
+    over(1, sstep(2.6, 1.2, pd)); over(3, sstep(1.5, .5, pd) * .6);               // worn path
     over(n2 > .5 ? 5 : 6, sstep(.45, .8, sl));                                      // rock faces
     over(7, sstep(8, 11, h) * sstep(.25, .5, sl));                                  // high rock
     over(2, 1 - sstep(3.5, 8, e + (n2 - .5) * 4));                                // beach sand
@@ -102,24 +113,13 @@ export async function buildIsland(loader, seed = 11, lite = false) {
   const terrain = new THREE.Mesh(geo, material); terrain.receiveShadow = true; terrain.castShadow = true;
   group.add(terrain);
 
-  // ---- 3. trees (Kenney unit-tree, instanced) ----
-  const treeSrc = await new Promise((res, rej) => loader.load('assets/hex/unit-tree.glb', g => { let m; g.scene.traverse(o => { if (o.isMesh && !m) m = o; }); res(m); }, undefined, rej));
-  const trees = [];
-  for (let k = 0; k < 2600 && trees.length < 520; k++) {
-    const x = (R() * 2 - 1) * RAD * S, z = (R() * 2 - 1) * RAD * S, e = coast(x, z), f = forestAt(x, z);
-    if (e < 5 || slopeAt(x, z) > .45 || heightAt(x, z) > 7) continue;
-    if (Math.hypot(x - VILLAGE[0], z - VILLAGE[1]) < 10 || Math.hypot(x - CAMP[0], z - CAMP[1]) < 9 || Math.abs(x) < 4 && z > beachZ - 22) continue;
-    if (R() > (f < 16 ? .95 : .06)) continue;
-    trees.push([x, z]);
-  }
-  const inst = new THREE.InstancedMesh(treeSrc.geometry, treeSrc.material, trees.length), dummy = new THREE.Object3D();
-  trees.forEach(([x, z], i) => { const s = S * (1.6 + R() * 1.1); dummy.position.set(x, heightAt(x, z) - .1, z); dummy.rotation.set(0, R() * 6.28, 0); dummy.scale.set(s, S * (2.8 + R() * 2.4), s); dummy.updateMatrix(); inst.setMatrixAt(i, dummy.matrix); });
-  inst.castShadow = inst.receiveShadow = true; group.add(inst);
+  const forestAt = forestAt0;
 
   // ---- 4. walkability (per hex for blocks, per point for terrain) + land mask for the water shader ----
   const blocked = new Set(), key = (c, r) => c + ',' + r;
-  const treeBlock = new Set(trees.map(([x, z]) => key(Math.round(x / 1.2), Math.round(z / 1.2))));
-  const walkable = (x, z) => heightAt(x, z) > WATER + .08 && slopeAt(x, z) < .6 && !blocked.has(key(...hexAt(x, z))) && !treeBlock.has(key(Math.round(x / 1.2), Math.round(z / 1.2)));
+  const solid = new Set(), sk = (x, z) => Math.round(x * 2) + ',' + Math.round(z * 2);          // 0.5 m cells blocked by trunks / rocks
+  const addSolid = (x, z, r) => { for (let a = -r; a <= r; a += .5) for (let b = -r; b <= r; b += .5) if (a * a + b * b <= r * r) solid.add(sk(x + a, z + b)); };
+  const walkable = (x, z) => heightAt(x, z) > WATER + .08 && slopeAt(x, z) < .6 && !blocked.has(key(...hexAt(x, z))) && !solid.has(sk(x, z));
   const block = (x, z, r) => { for (let row = Math.floor((z - r) / ROW) - 1; row <= (z + r) / ROW + 1; row++) for (let col = Math.floor((x - r) / S) - 1; col <= (x + r) / S + 1; col++) { const [cx, cz] = hexCenter(col, row); if (Math.hypot(cx - x, cz - z) < r) blocked.add(key(col, row)); } };
   const MW = 512, span = (RAD + 14) * S * 2, mask = document.createElement('canvas'); mask.width = mask.height = MW;
   const g = mask.getContext('2d'), img = g.createImageData(MW, MW);
@@ -133,5 +133,5 @@ export async function buildIsland(loader, seed = 11, lite = false) {
   const shipPos = new THREE.Vector3(3, 0, beachZ + 15);
   const spawn = new THREE.Vector3(0, 0, beachZ - 4); spawn.y = heightAt(spawn.x, spawn.z);
   const camp = new THREE.Vector3(CAMP[0], 0, CAMP[1]); camp.y = heightAt(camp.x, camp.z);
-  return { group, heightAt, walkable, block, mask, span, spawn, shipPos, camp, material, RAD };
+  return { group, heightAt, slopeAt, coast, forestAt, pathDist, path, walkable, block, addSolid, mask, span, spawn, shipPos, camp, material, RAD, MTN, VILLAGE, CAMP, beachZ };
 }

@@ -37,7 +37,7 @@ ${THREE.ShaderChunk.fog_pars_fragment}
         col += vec3(1., .95, .85) * spec * 1.4;
         float waves = smoothstep(.75, .95, sin(land * 32. - uT * 1.6 + n(vW.xz * .4) * 3.) * .5 + .5) * smoothstep(.35, .7, land);
         float edge = smoothstep(.78, .92, land);
-        col = mix(col, vec3(.95, .98, 1.), clamp(waves * .7 + edge * (.6 + .4 * n(vW.xz * 2. + uT)), 0., 1.));
+        col = mix(col, vec3(.95, .98, 1.), clamp(waves * .35 + edge * (.35 + .35 * n(vW.xz * 2. + uT)), 0., 1.));
         gl_FragColor = vec4(col, 1.);
         ${THREE.ShaderChunk.fog_fragment}
       }

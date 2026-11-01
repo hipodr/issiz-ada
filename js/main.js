@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { buildIsland } from './island.js';
 import { makeWater } from './water.js';
+import { buildNature } from './nature.js';
 import { loadHero } from './hero.js';
 import { makeInput } from './input.js';
 
@@ -29,6 +30,7 @@ const loader = new GLTFLoader();
 const island = await buildIsland(loader, +q.get('seed') || 11, q.has('lite'));
 scene.add(island.group);
 const water = makeWater(island.mask, island.span, sunDir); scene.add(water);
+const nature = await buildNature(loader, island, 7, q.has('lite')); scene.add(nature.group);
 
 // ship anchored in the bay + the barracks of our first camp
 const loadModel = url => new Promise((res, rej) => loader.load(url, g => { g.scene.traverse(o => { if (o.isMesh) { o.castShadow = o.receiveShadow = true; } }); res(g.scene); }, undefined, rej));
@@ -37,8 +39,12 @@ const barracks = await loadModel('assets/buildings/barracks.glb'); barracks.scal
 island.block(island.camp.x, island.camp.z, 3.6);
 
 const hero = await loadHero(loader); hero.obj.position.copy(island.spawn); scene.add(hero.obj);
+// captain silhouette: parts hidden behind trees / buildings are drawn again as a soft gold shape (layer 1 pass)
+hero.obj.traverse(o => o.layers.set(1)); sun.shadow.camera.layers.enable(1);
+scene.traverse(o => { if (o.isLight) o.layers.enable(1); });   // captain lives on layer 1 only (still casts a shadow)
+const ghost = new THREE.MeshBasicMaterial({ color: 0xffd27a, transparent: true, opacity: .45, depthFunc: THREE.GreaterDepth, depthWrite: false });
 const input = makeInput($('cv'), $('stick'), $('knob'));
-let grid = true; $('grid').onclick = () => { grid = !grid; island.material.grid(grid ? .8 : 0); $('grid').classList.toggle('off', !grid); };
+let grid = false; $('grid').classList.add('off'); $('grid').onclick = () => { grid = !grid; island.material.grid(grid ? .8 : 0); $('grid').classList.toggle('off', !grid); };
 let dist = 15;
 input.onPinch = f => { dist = Math.max(7, Math.min(40, dist / f)); };
 $('busy').hidden = true;
@@ -50,15 +56,19 @@ function frame(now) {
   hero.update(input.get(), dt, island.walkable);
   const p = hero.obj.position; p.y += (island.heightAt(p.x, p.z) - p.y) * Math.min(1, dt * 20);
   camTarget.lerp(p, 1 - Math.exp(-dt * 6));
-  camera.position.set(camTarget.x, camTarget.y + dist * .82, camTarget.z + dist * .62);
+  camera.position.set(camTarget.x, camTarget.y + dist * .74, camTarget.z + dist * .68);
   camera.lookAt(camTarget.x, camTarget.y + .6, camTarget.z);
   sun.position.copy(camTarget).addScaledVector(sunDir, 60); sun.target.position.copy(camTarget);   // shadows follow the hero
-  water.update(t);
+  water.update(t); nature.update(camTarget);
+  // 1) world without the captain, 2) his hidden parts as a gold ghost, 3) the captain himself
   renderer.render(scene, camera);
+  renderer.autoClear = false; renderer.shadowMap.autoUpdate = false; camera.layers.set(1); const bg = scene.background; scene.background = null;
+  scene.overrideMaterial = ghost; renderer.render(scene, camera); scene.overrideMaterial = null; renderer.render(scene, camera);
+  scene.background = bg; camera.layers.set(0); renderer.autoClear = true; renderer.shadowMap.autoUpdate = true;
   slowT = dt > 1 / 28 ? slowT + dt : Math.max(0, slowT - dt * .5);
   if (slowT > 1.5 && quality > .55 && !q.has('debug')) { quality *= .8; resize(); slowT = 0; }
   if (q.has('debug')) { frames++; fpsT += dt; if (fpsT > .5) { $('fps').textContent = Math.round(frames / fpsT) + ' fps'; frames = 0; fpsT = 0; } }
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
-window.__DEMO = { hero, island, camera, setDist: d => { dist = d; }, input };
+window.__DEMO = { camTarget, nature, hero, island, camera, setDist: d => { dist = d; }, input };
