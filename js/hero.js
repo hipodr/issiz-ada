@@ -26,18 +26,18 @@ export async function loadHero(loader, url = 'assets/hero/captain.glb', height =
   const hero = {
     obj, get speed() { return speed; }, anims: gl.animations.map(a => a.name.split('|').pop()),
     debug: () => ({ speed: +speed.toFixed(2), acts: mixer._actions.filter(a => a.isRunning() && a.getEffectiveWeight() > .01).map(a => a.getClip().name + ':' + a.getEffectiveWeight().toFixed(2)) }),
-    // play a clip once over the locomotion; hold = stay on the last frame (death) until the stick moves
-    play(name, hold = false) {
+    // play a clip over the locomotion: once (hold = stay on the last frame, e.g. death) or looping (sitting, idles) until the stick moves
+    play(name, hold = false, loop = false) {
       const c = clip(name); if (!c) return false;
       const w = shot ? shot.w : 0; if (shot) shot.a.stop();
-      const a = mixer.clipAction(c); a.reset(); a.setLoop(THREE.LoopOnce, 1); a.clampWhenFinished = true; a.setEffectiveWeight(w); a.play();
+      const a = mixer.clipAction(c); a.reset(); a.setLoop(loop ? THREE.LoopRepeat : THREE.LoopOnce, Infinity); a.clampWhenFinished = true; a.setEffectiveWeight(w); a.play();
       shot = { a, w, hold, out: false };
       return true;
     },
     update(input, dt, walkable) {
       const m = Math.min(1, Math.hypot(input.x, input.y));
       if (shot) {
-        const done = shot.a.time >= shot.a.getClip().duration - .02;
+        const done = shot.a.loop === THREE.LoopOnce && shot.a.time >= shot.a.getClip().duration - .02;
         if (m >= .12 || (done && !shot.hold)) shot.out = true;                       // moving or finished → blend back to walking
         shot.w = Math.max(0, Math.min(1, shot.w + (shot.out ? -dt * 4 : dt * 6)));
         shot.a.setEffectiveWeight(shot.w);

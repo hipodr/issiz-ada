@@ -50,9 +50,11 @@ let dist = 14, camYaw = 0, idleT = 0;
 input.onPinch = f => { dist = Math.max(2.2, Math.min(22, dist / f)); };
 input.onOrbit = dx => { camYaw -= dx * 4; };
 // animation test panel
-const ANIMS = [['Selam', 'Wave'], ['Al', 'Interact'], ['Kılıç', 'Sword_Slash'], ['Ateş', 'Gun_Shoot'], ['Nişan', 'Idle_Gun'], ['Takla', 'Roll'], ['Darbe', 'HitRecieve'], ['Ölüm', 'Death'], ['Avaturn', 'Avaturn_avaturn_animation']];
-$('anims').innerHTML = ANIMS.filter(([, n]) => hero.anims.includes(n)).map(([l, n]) => `<button data-a="${n}">${l}</button>`).join('');
-$('anims').onclick = e => { const n = e.target.dataset?.a; if (n) hero.play(n, n === 'Death'); };
+// known clips get Turkish labels; any other clip in captain.glb (e.g. new Mixamo ones) appears under its own name
+const LABEL = { Wave: 'Selam', Interact: 'Al', Sword_Slash: 'Kılıç', Gun_Shoot: 'Ateş', Idle_Gun: 'Nişan', Roll: 'Takla', HitRecieve: 'Darbe', Death: 'Ölüm', Avaturn_avaturn_animation: 'Avaturn', Sitting_Idle: 'Otur' };
+const LOOPS = /Idle|Sitting|Dance|Talking|Avaturn/i;
+$('anims').innerHTML = hero.anims.filter(n => !['Idle', 'Walk', 'Run'].includes(n)).map(n => `<button data-a="${n}">${LABEL[n] || n.replace(/_/g, ' ')}</button>`).join('');
+$('anims').onclick = e => { const n = e.target.dataset?.a; if (n) hero.play(n, n === 'Death', LOOPS.test(n)); };
 $('animBtn').onclick = () => { $('anims').hidden = !$('anims').hidden; };
 $('busy').hidden = true;
 
